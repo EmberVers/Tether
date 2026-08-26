@@ -4,9 +4,12 @@
 #include "AssetRegistry/ARFilter.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetRegistry/IAssetRegistry.h"
+#include "AssetToolsModule.h"
 #include "Engine/Blueprint.h"
 #include "Engine/BlueprintGeneratedClass.h"
 #include "Engine/DataAsset.h"
+#include "Factories/DataAssetFactory.h"
+#include "IAssetTools.h"
 #include "UObject/ObjectRedirector.h"
 #include "HAL/FileManager.h"
 #include "Misc/PackageName.h"
@@ -567,6 +570,117 @@ void UUnrealBridgeAssetLibrary::GetDataAssetSoftPathsByAssetPath(
 
 	for (const FAssetData& Data : AssetDatas)
 		OutSoftPaths.Add(Data.GetSoftObjectPath());
+}
+
+FBridgeDataAssetCreateResult UUnrealBridgeAssetLibrary::CreateDataAsset(
+	const FString& AssetPath,
+	const FString& DataAssetClassPath,
+	const bool bSave)
+{
+	FBridgeDataAssetCreateResult Out;
+
+	FString PackageName;
+	BridgeAssetOps::ParsePathToObjectPath(AssetPath, PackageName);
+	PackageName.TrimStartAndEndInline();
+	int32 ObjectSeparator = INDEX_NONE;
+	if (PackageName.FindLastChar(TEXT('.'), ObjectSeparator))
+	{
+		PackageName.LeftInline(ObjectSeparator);
+	}
+
+	FText PackageError;
+	if (!FPackageName::IsValidLongPackageName(PackageName, true, &PackageError))
+	{
+		Out.Error = FString::Printf(
+			TEXT("asset_path '%s' is not a valid mounted content package: %s"),
+			*AssetPath,
+			*PackageError.ToString());
+		return Out;
+	}
+	if (PackageName.StartsWith(TEXT("/Engine/"), ESearchCase::IgnoreCase)
+		|| PackageName.StartsWith(TEXT("/Script/"), ESearchCase::IgnoreCase))
+	{
+		Out.Error = TEXT("asset_path must target project or plugin content; /Engine and /Script are read-only through this API");
+		return Out;
+	}
+	if (DoesAssetExist(PackageName))
+	{
+		Out.Error = FString::Printf(
+			TEXT("asset '%s' already exists; CreateDataAsset never overwrites existing content"),
+			*PackageName);
+		return Out;
+	}
+
+	FString ClassObjectPath;
+	BridgeAssetOps::ParsePathToObjectPath(DataAssetClassPath, ClassObjectPath);
+	UClass* DataAssetClass = BridgeAssetOps::ResolveBlueprintPathToClass(ClassObjectPath);
+	if (!DataAssetClass)
+	{
+		DataAssetClass = LoadObject<UClass>(nullptr, *ClassObjectPath);
+	}
+	if (!DataAssetClass || !DataAssetClass->IsChildOf(UDataAsset::StaticClass()))
+	{
+		Out.Error = FString::Printf(
+			TEXT("data_asset_class_path '%s' does not resolve to a UDataAsset subclass"),
+			*DataAssetClassPath);
+		return Out;
+	}
+	if (DataAssetClass->HasAnyClassFlags(
+		CLASS_Abstract | CLASS_Deprecated | CLASS_NewerVersionExists))
+	{
+		Out.Error = FString::Printf(
+			TEXT("DataAsset class '%s' cannot be instantiated because it is abstract, deprecated, or superseded"),
+			*DataAssetClass->GetPathName());
+		return Out;
+	}
+	Out.ClassPath = DataAssetClass->GetPathName();
+
+	const FString AssetName = FPackageName::GetLongPackageAssetName(PackageName);
+	const FString PackagePath = FPackageName::GetLongPackagePath(PackageName);
+	if (AssetName.IsEmpty() || PackagePath.IsEmpty())
+	{
+		Out.Error = FString::Printf(
+			TEXT("asset_path '%s' must include both a mounted folder and an asset name"),
+			*AssetPath);
+		return Out;
+	}
+
+	UDataAssetFactory* Factory = NewObject<UDataAssetFactory>();
+	Factory->DataAssetClass = DataAssetClass;
+	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>(TEXT("AssetTools")).Get();
+	FScopedTransaction Transaction(NSLOCTEXT(
+		"UnrealBridgeAsset", "CreateDataAsset", "UnrealBridge: Create Data Asset"));
+	UObject* CreatedAsset = AssetTools.CreateAsset(AssetName, PackagePath, DataAssetClass, Factory);
+	if (!CreatedAsset)
+	{
+		Transaction.Cancel();
+		Out.Error = FString::Printf(
+			TEXT("AssetTools could not create '%s' from class '%s'"),
+			*PackageName,
+			*DataAssetClass->GetPathName());
+		return Out;
+	}
+
+	Out.bCreated = true;
+	Out.AssetPath = CreatedAsset->GetPathName();
+	UPackage* Package = CreatedAsset->GetOutermost();
+	Out.bPackageDirty = Package && Package->IsDirty();
+	if (bSave)
+	{
+		TArray<UPackage*> Packages;
+		Packages.Add(Package);
+		if (!Package || !UEditorLoadingAndSavingUtils::SavePackages(Packages, false))
+		{
+			Out.Error = TEXT("DataAsset was created in memory but its package could not be saved; it remains dirty and undoable");
+			Out.bPackageDirty = Package && Package->IsDirty();
+			return Out;
+		}
+		Out.bSaved = true;
+	}
+
+	Out.bPackageDirty = Package && Package->IsDirty();
+	Out.bSuccess = true;
+	return Out;
 }
 
 // ═══════════════════════════════════════════════════════════

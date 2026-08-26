@@ -31,7 +31,7 @@
       "TIMER"
     ]
   },
-  "generated_at": "2026-08-18T08:43:51+00:00",
+  "generated_at": "2026-08-25T02:49:04+00:00",
   "libraries": {
     "UnrealBridgeAnimLibrary": {
       "functions": {
@@ -1785,6 +1785,30 @@
     },
     "UnrealBridgeAssetLibrary": {
       "functions": {
+        "create_data_asset": {
+          "doc": "X.create_data_asset(asset_path, data_asset_class_path, save=True) -> BridgeDataAssetCreateResult",
+          "params": [
+            {
+              "default": null,
+              "has_default": false,
+              "name": "asset_path",
+              "type": ""
+            },
+            {
+              "default": null,
+              "has_default": false,
+              "name": "data_asset_class_path",
+              "type": ""
+            },
+            {
+              "default": "True",
+              "has_default": true,
+              "name": "save",
+              "type": ""
+            }
+          ],
+          "returns": "BridgeDataAssetCreateResult"
+        },
         "does_asset_exist": {
           "doc": "X.does_asset_exist(asset_path) -> bool",
           "params": [
@@ -29816,6 +29840,15 @@
       "name",
       "num_keys_per_row",
       "row_names"
+    ],
+    "BridgeDataAssetCreateResult": [
+      "asset_path",
+      "class_path",
+      "created",
+      "error",
+      "package_dirty",
+      "saved",
+      "success"
     ],
     "BridgeDataTableColumn": [
       "inner_type_name",

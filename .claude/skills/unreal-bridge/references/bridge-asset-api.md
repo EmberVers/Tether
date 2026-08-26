@@ -203,6 +203,29 @@ foley_used = asl.list_searchable_name_values('GameplayTag', 'Foley.', 0)
 
 ## DataAsset Queries
 
+### create_data_asset(asset_path, data_asset_class_path, save=True) -> FBridgeDataAssetCreateResult
+
+Create one native- or Blueprint-class DataAsset without falling back to raw
+`AssetToolsHelpers`. `asset_path` is the complete target package path; existing
+assets are rejected and never overwritten. `/Engine` and `/Script` targets are
+also rejected.
+
+```python
+from unreal_bridge import Asset
+
+result = Asset.create_data_asset(
+    asset_path='/Game/Data/DA_MyItem',
+    data_asset_class_path='/Script/MyGame.MyItemDefinition',
+    save=True,
+)
+assert result.success, result.error
+print(result.asset_path, result.class_path, result.saved)
+```
+
+With `save=False`, creation remains undoable and the package stays dirty. If a
+requested save fails, `created=True`, `success=False`, and `error` explains that
+the in-memory asset still exists. The result also exposes `package_dirty`.
+
 ### get_data_assets_by_base_class(base_class) -> list[AssetData]
 
 Get all DataAssets of a given base class (recursive).

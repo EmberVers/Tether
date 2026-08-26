@@ -16,7 +16,7 @@ structural rather than mnemonic.
 
 import unreal
 
-_GENERATED_AT = '2026-08-18T08:43:51+00:00'
+_GENERATED_AT = '2026-08-25T02:49:04+00:00'
 _UE_VERSION = '5.7.1-48512491+++UE5+Release-5.7'
 
 class Anim:
@@ -375,6 +375,11 @@ class Anim:
 
 class Asset:
     """Wraps unreal.UnrealBridgeAssetLibrary (kwargs-only)."""
+
+    @staticmethod
+    def create_data_asset(*, asset_path, data_asset_class_path, save=True):
+        """X.create_data_asset(asset_path, data_asset_class_path, save=True) -> BridgeDataAssetCreateResult"""
+        return unreal.UnrealBridgeAssetLibrary.create_data_asset(asset_path, data_asset_class_path, save)
 
     @staticmethod
     def does_asset_exist(*, asset_path):

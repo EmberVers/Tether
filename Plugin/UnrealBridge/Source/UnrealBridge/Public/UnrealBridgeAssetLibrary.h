@@ -61,6 +61,39 @@ struct FBridgeAssetInfo
 	TArray<FBridgeAssetTag> Tags;
 };
 
+/** Result of a fail-closed CreateDataAsset call. */
+USTRUCT(BlueprintType)
+struct FBridgeDataAssetCreateResult
+{
+	GENERATED_BODY()
+
+	/** True only when creation and the requested save both succeeded. */
+	UPROPERTY(BlueprintReadOnly, Category = "UnrealBridge|Asset")
+	bool bSuccess = false;
+
+	/** True when an in-memory asset was created, including the rare save-failure case. */
+	UPROPERTY(BlueprintReadOnly, Category = "UnrealBridge|Asset")
+	bool bCreated = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "UnrealBridge|Asset")
+	bool bSaved = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "UnrealBridge|Asset")
+	bool bPackageDirty = false;
+
+	/** Canonical object path of the created asset. */
+	UPROPERTY(BlueprintReadOnly, Category = "UnrealBridge|Asset")
+	FString AssetPath;
+
+	/** Resolved native or Blueprint-generated class path. */
+	UPROPERTY(BlueprintReadOnly, Category = "UnrealBridge|Asset")
+	FString ClassPath;
+
+	/** Empty on success; otherwise contains one actionable validation/save error. */
+	UPROPERTY(BlueprintReadOnly, Category = "UnrealBridge|Asset")
+	FString Error;
+};
+
 /** Per-LOD stats for a static / skeletal mesh. */
 USTRUCT(BlueprintType)
 struct FBridgeMeshLODStats
@@ -409,6 +442,17 @@ public:
 	static void GetDataAssetSoftPathsByAssetPath(
 		const FString& DataAssetPath,
 		TArray<FSoftObjectPath>& OutSoftPaths);
+
+	/**
+	 * Create one DataAsset from a native class path or DataAsset Blueprint path.
+	 * AssetPath is a complete content package path such as /Game/Data/DA_Item.
+	 * Existing assets are never overwritten.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "UnrealBridge|Asset")
+	static FBridgeDataAssetCreateResult CreateDataAsset(
+		const FString& AssetPath,
+		const FString& DataAssetClassPath,
+		bool bSave = true);
 
 	// ── Folder / Path Queries ─────────────────────────────────
 
