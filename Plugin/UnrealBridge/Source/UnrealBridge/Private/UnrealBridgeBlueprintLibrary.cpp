@@ -1988,6 +1988,13 @@ namespace BridgeBlueprintGraphWriteImpl
 		for (UEdGraph* G : BP->UbergraphPages) { if (G && G->GetName() == GraphName) return G; }
 		for (UEdGraph* G : BP->MacroGraphs)    { if (G && G->GetName() == GraphName) return G; }
 		for (UEdGraph* G : BP->DelegateSignatureGraphs) { if (G && G->GetName() == GraphName) return G; }
+		for (const FBPInterfaceDescription& Interface : BP->ImplementedInterfaces)
+		{
+			for (UEdGraph* G : Interface.Graphs)
+			{
+				if (G && G->GetName() == GraphName) return G;
+			}
+		}
 
 		// Deep walk: covers AnimBlueprint interiors (state-machine graphs,
 		// state BoundGraphs, transition rule graphs) and nested K2 SubGraphs
@@ -1999,6 +2006,10 @@ namespace BridgeBlueprintGraphWriteImpl
 		Stack.Append(BP->UbergraphPages);
 		Stack.Append(BP->MacroGraphs);
 		Stack.Append(BP->DelegateSignatureGraphs);
+		for (const FBPInterfaceDescription& Interface : BP->ImplementedInterfaces)
+		{
+			Stack.Append(Interface.Graphs);
+		}
 
 		TSet<UEdGraph*> Visited;
 		while (Stack.Num() > 0)
@@ -5182,6 +5193,10 @@ namespace BridgeBPSummaryImpl
 		if (UEdGraph* G = Probe(BP->FunctionGraphs)) return G;
 		if (UEdGraph* G = Probe(BP->UbergraphPages)) return G;
 		if (UEdGraph* G = Probe(BP->MacroGraphs))    return G;
+		for (const FBPInterfaceDescription& Interface : BP->ImplementedInterfaces)
+		{
+			if (UEdGraph* G = Probe(Interface.Graphs)) return G;
+		}
 		return nullptr;
 	}
 

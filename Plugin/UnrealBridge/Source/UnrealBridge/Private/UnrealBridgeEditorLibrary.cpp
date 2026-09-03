@@ -80,6 +80,7 @@
 #include "ILiveCodingModule.h"
 #endif
 #include "UnrealBridgeCallLog.h"
+#include "UnrealBridgeWorldSelection.h"
 #include "Policies/CondensedJsonPrintPolicy.h"
 #include "UObject/UnrealType.h"
 #if PLATFORM_WINDOWS
@@ -612,6 +613,33 @@ FString UUnrealBridgeEditorLibrary::ExecuteConsoleCommand(const FString& Command
 	if (GEngine)
 	{
 		GEngine->Exec(BridgeEditorImpl::GetEditorWorld(), *Command, Dev);
+	}
+	GLog->RemoveOutputDevice(&Dev);
+	return Dev.Output;
+}
+
+FString UUnrealBridgeEditorLibrary::ExecutePIEConsoleCommand(const FString& Command)
+{
+	if (!GEditor)
+	{
+		return TEXT("UnrealBridge: editor is unavailable.\n");
+	}
+
+	UWorld* PIEWorld = BridgeAgentImpl::SelectFirstValidPIEWorld(GEditor->GetWorldContexts());
+	if (!PIEWorld)
+	{
+		return TEXT("UnrealBridge: no begun-play PIE world is available.\n");
+	}
+
+	BridgeEditorImpl::FCaptureDevice Dev;
+	GLog->AddOutputDevice(&Dev);
+	if (GEngine)
+	{
+		GEngine->Exec(PIEWorld, *Command, Dev);
+	}
+	else
+	{
+		Dev.Output = TEXT("UnrealBridge: engine is unavailable.\n");
 	}
 	GLog->RemoveOutputDevice(&Dev);
 	return Dev.Output;

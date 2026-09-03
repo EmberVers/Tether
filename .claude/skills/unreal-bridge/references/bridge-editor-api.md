@@ -996,10 +996,24 @@ elapsed = unreal.UnrealBridgeEditorLibrary.get_pie_world_time() - t0
 
 ### execute_console_command(command) -> str
 
-Run a console command. Returns captured `GLog` output (best-effort — some commands print only to the viewport HUD).
+Run a console command against the editor world. Returns captured `GLog` output (best-effort — some commands print only to the viewport HUD).
 
 ```python
 out = unreal.UnrealBridgeEditorLibrary.execute_console_command('stat fps')
+print(out)
+```
+
+### execute_pie_console_command(command) -> str
+
+Run a console command against the first begun-play PIE world. Use this for
+commands that resolve a world or `GameInstanceSubsystem`; sending those through
+`execute_console_command` targets the editor world and can silently find no
+runtime subsystem. When PIE is not running, the returned string contains an
+explicit diagnostic instead of executing against the editor world.
+
+```python
+out = unreal.UnrealBridgeEditorLibrary.execute_pie_console_command(
+    'MyGame.Save SmokeSlot')
 print(out)
 ```
 

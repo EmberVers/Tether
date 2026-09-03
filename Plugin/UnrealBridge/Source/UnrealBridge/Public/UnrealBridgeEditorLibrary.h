@@ -386,6 +386,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "UnrealBridge|Editor")
 	static FString ExecuteConsoleCommand(const FString& Command);
 
+	/**
+	 * Run a console command against the first begun-play PIE world.
+	 * Returns captured GLog output, or a diagnostic string when PIE is not running.
+	 * Use this for commands that resolve GameInstance/world subsystems; the legacy
+	 * ExecuteConsoleCommand intentionally targets the editor world.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "UnrealBridge|Editor")
+	static FString ExecutePIEConsoleCommand(const FString& Command);
+
 	UFUNCTION(BlueprintCallable, Category = "UnrealBridge|Editor")
 	static FString GetCVar(const FString& Name);
 

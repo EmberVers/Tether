@@ -16,7 +16,7 @@ structural rather than mnemonic.
 
 import unreal
 
-_GENERATED_AT = '2026-08-25T02:49:04+00:00'
+_GENERATED_AT = '2026-08-30T15:57:44+00:00'
 _UE_VERSION = '5.7.1-48512491+++UE5+Release-5.7'
 
 class Anim:
@@ -1920,6 +1920,11 @@ class Editor:
     def execute_console_command(*, command):
         """X.execute_console_command(command) -> str"""
         return unreal.UnrealBridgeEditorLibrary.execute_console_command(command)
+
+    @staticmethod
+    def execute_pie_console_command(*, command):
+        """X.execute_pie_console_command(command) -> str"""
+        return unreal.UnrealBridgeEditorLibrary.execute_pie_console_command(command)
 
     @staticmethod
     def fixup_redirectors(*, paths):

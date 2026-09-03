@@ -31,7 +31,7 @@
       "TIMER"
     ]
   },
-  "generated_at": "2026-08-25T02:49:04+00:00",
+  "generated_at": "2026-08-30T15:57:44+00:00",
   "libraries": {
     "UnrealBridgeAnimLibrary": {
       "functions": {
@@ -8962,6 +8962,18 @@
         },
         "execute_console_command": {
           "doc": "X.execute_console_command(command) -> str",
+          "params": [
+            {
+              "default": null,
+              "has_default": false,
+              "name": "command",
+              "type": ""
+            }
+          ],
+          "returns": "str"
+        },
+        "execute_pie_console_command": {
+          "doc": "X.execute_pie_console_command(command) -> str",
           "params": [
             {
               "default": null,

@@ -1777,6 +1777,10 @@ namespace BridgeAnimWriteImpl
 		Stack.Append(ABP->UbergraphPages);
 		Stack.Append(ABP->DelegateSignatureGraphs);
 		Stack.Append(ABP->MacroGraphs);
+		for (const FBPInterfaceDescription& Interface : ABP->ImplementedInterfaces)
+		{
+			Stack.Append(Interface.Graphs);
+		}
 
 		TSet<UEdGraph*> Visited;
 		while (Stack.Num() > 0)
@@ -1963,6 +1967,14 @@ TArray<FBridgeAnimGraphSummary> UUnrealBridgeAnimLibrary::ListAnimGraphs(const F
 		if (!G) continue;
 		const bool bIsAnimGraph = (G->GetName() == TEXT("AnimGraph"));
 		Queue.Add({ G, bIsAnimGraph ? TEXT("AnimGraph") : TEXT("Function"), FString() });
+	}
+	for (const FBPInterfaceDescription& Interface : ABP->ImplementedInterfaces)
+	{
+		const FString InterfaceName = Interface.Interface ? Interface.Interface->GetName() : FString();
+		for (UEdGraph* G : Interface.Graphs)
+		{
+			if (G) Queue.Add({ G, TEXT("AnimLayer"), InterfaceName });
+		}
 	}
 	for (UEdGraph* G : ABP->UbergraphPages) if (G) Queue.Add({ G, TEXT("Ubergraph"), FString() });
 	for (UEdGraph* G : ABP->MacroGraphs) if (G) Queue.Add({ G, TEXT("Macro"), FString() });
