@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Detect drift between a UE project's EngineAssociation and the bridge editor.
+"""Detect drift between a UE project's EngineAssociation and the tether editor.
 
 `.uproject` files pin an engine version via the `EngineAssociation` field —
 either a literal version string ("5.7") or a GUID pointing at a registered
-custom build. When the connected bridge editor is a different major.minor,
+custom build. When the connected tether editor is a different major.minor,
 loaded assets / DLLs may be silently incompatible (the editor refuses to load
-the project but bridge already attached, etc).
+the project but tether already attached, etc).
 
 This tool reports the drift so you can switch editors before debugging
 mysterious mismatches.
@@ -17,7 +17,7 @@ Usage:
     python tools/check_engine_drift.py --json                # machine-readable
     python tools/check_engine_drift.py --strict              # exit 1 on patch-level diff too
 
-Exit codes: 0 = match, 1 = drift, 2 = setup failure (no .uproject, bridge
+Exit codes: 0 = match, 1 = drift, 2 = setup failure (no .uproject, tether
 unreachable, parse error, etc.).
 """
 from __future__ import annotations
@@ -31,7 +31,7 @@ from pathlib import Path
 from typing import Optional
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-BRIDGE_PY = REPO_ROOT / ".claude" / "skills" / "unreal-bridge" / "scripts" / "bridge.py"
+TETHER_PY = REPO_ROOT / ".claude" / "skills" / "tether" / "scripts" / "tether.py"
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -55,15 +55,15 @@ def parse_engine_association(uproject_path: Path) -> str:
     return str(data.get("EngineAssociation", "")).strip()
 
 
-def get_bridge_engine_version(project_filter: Optional[str], timeout: int) -> Optional[str]:
-    """Ask the connected bridge editor for its FEngineVersion::Current()."""
-    if not BRIDGE_PY.exists():
+def get_tether_engine_version(project_filter: Optional[str], timeout: int) -> Optional[str]:
+    """Ask the connected tether editor for its FEngineVersion::Current()."""
+    if not TETHER_PY.exists():
         return None
-    cmd = ["python", str(BRIDGE_PY)]
+    cmd = ["python", str(TETHER_PY)]
     if project_filter:
         cmd.append(f"--project={project_filter}")
     cmd += ["exec",
-            "import unreal; print(unreal.UnrealBridgeEditorLibrary.get_engine_version())"]
+            "import unreal; print(unreal.TetherEditorLibrary.get_engine_version())"]
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True,
                               encoding="utf-8", timeout=timeout)
@@ -71,10 +71,10 @@ def get_bridge_engine_version(project_filter: Optional[str], timeout: int) -> Op
         return None
     if proc.returncode != 0:
         return None
-    # bridge.py prints the script's stdout; last non-empty line is the version.
+    # tether.py prints the script's stdout; last non-empty line is the version.
     for line in reversed(proc.stdout.strip().splitlines()):
         line = line.strip()
-        if line and not line.startswith("["):  # filter bridge.py's own log lines
+        if line and not line.startswith("["):  # filter tether.py's own log lines
             return line
     return None
 
@@ -101,11 +101,11 @@ def is_guid(s: str) -> bool:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Check .uproject engine vs connected bridge editor.")
+    ap = argparse.ArgumentParser(description="Check .uproject engine vs connected tether editor.")
     ap.add_argument("--uproject", help="Path to .uproject (auto-discover if omitted)")
-    ap.add_argument("--project", help="Project name filter forwarded to bridge.py "
+    ap.add_argument("--project", help="Project name filter forwarded to tether.py "
                                       "(disambiguates multi-editor setups)")
-    ap.add_argument("--timeout", type=int, default=10, help="Bridge timeout seconds")
+    ap.add_argument("--timeout", type=int, default=10, help="Tether timeout seconds")
     ap.add_argument("--json", action="store_true", help="Emit JSON instead of text")
     ap.add_argument("--strict", action="store_true",
                     help="Treat patch-level differences as drift too")
@@ -129,15 +129,15 @@ def main() -> int:
         print(json.dumps({"error": msg}) if args.json else f"error: {msg}", file=sys.stderr)
         return 2
 
-    # 2) Query bridge
-    bridge_ver = get_bridge_engine_version(args.project, args.timeout)
-    if bridge_ver is None:
-        msg = "bridge unreachable (start the editor with the UnrealBridge plugin)"
+    # 2) Query tether
+    tether_ver = get_tether_engine_version(args.project, args.timeout)
+    if tether_ver is None:
+        msg = "tether unreachable (start the editor with the Tether plugin)"
         print(json.dumps({"error": msg}) if args.json else f"error: {msg}", file=sys.stderr)
         return 2
 
     # 3) Compare
-    bridge_tuple = normalize_version(bridge_ver)
+    tether_tuple = normalize_version(tether_ver)
     project_tuple: Optional[tuple] = None
     project_repr: str = assoc
     project_kind: str
@@ -156,13 +156,13 @@ def main() -> int:
     drift = False
     note = ""
 
-    if project_kind == "version" and project_tuple and bridge_tuple:
+    if project_kind == "version" and project_tuple and tether_tuple:
         # Major.minor must match. Patch differences only matter under --strict.
-        if project_tuple[:2] != bridge_tuple[:2]:
+        if project_tuple[:2] != tether_tuple[:2]:
             drift = True
             note = "major.minor mismatch — definitely incompatible"
-        elif args.strict and len(project_tuple) >= 3 and len(bridge_tuple) >= 3 \
-                and project_tuple[2] != bridge_tuple[2]:
+        elif args.strict and len(project_tuple) >= 3 and len(tether_tuple) >= 3 \
+                and project_tuple[2] != tether_tuple[2]:
             drift = True
             note = "patch-level mismatch (strict mode)"
         else:
@@ -178,8 +178,8 @@ def main() -> int:
         "uproject": str(uproject),
         "uproject_engine_association": assoc,
         "uproject_engine_kind": project_kind,
-        "bridge_engine_version": bridge_ver,
-        "bridge_engine_tuple": list(bridge_tuple) if bridge_tuple else None,
+        "tether_engine_version": tether_ver,
+        "tether_engine_tuple": list(tether_tuple) if tether_tuple else None,
         "drift": drift,
         "note": note,
     }
@@ -189,8 +189,8 @@ def main() -> int:
     else:
         print(f"Project   : {uproject}")
         print(f"  EngineAssociation: {project_repr}  [{project_kind}]")
-        print(f"Bridge editor:")
-        print(f"  Engine version   : {bridge_ver}")
+        print(f"Tether editor:")
+        print(f"  Engine version   : {tether_ver}")
         print()
         marker = "✗" if drift else "✓"
         print(f"  [{marker}] {note}")

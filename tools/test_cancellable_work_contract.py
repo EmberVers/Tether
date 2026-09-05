@@ -10,13 +10,13 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SERVER_CPP = (
     REPO_ROOT
     / "Plugin"
-    / "UnrealBridge"
+    / "Tether"
     / "Source"
-    / "UnrealBridge"
+    / "Tether"
     / "Private"
-    / "UnrealBridgeServer.cpp"
+    / "TetherServer.cpp"
 )
-WORK_HEADER = SERVER_CPP.with_name("UnrealBridgeCancellableWork.h")
+WORK_HEADER = SERVER_CPP.with_name("TetherCancellableWork.h")
 GUIDE = REPO_ROOT / "CLAUDE.md"
 
 
@@ -29,18 +29,18 @@ class CancellableWorkSourceContractTests(unittest.TestCase):
 
     def test_state_machine_has_only_the_four_authoritative_states(self):
         enum_body = self.work.split(
-            "enum class EUnrealBridgeWorkState", 1
+            "enum class ETetherWorkState", 1
         )[1].split("};", 1)[0]
         for state in ("Queued", "Running", "Cancelled", "Completed"):
             self.assertEqual(enum_body.count(state), 1)
 
     def test_exec_and_modal_use_the_same_work_primitive(self):
         self.assertIn(
-            "TUnrealBridgeCancellableWork<FExecResult> Work;", self.server
+            "TTetherCancellableWork<FExecResult> Work;", self.server
         )
         self.assertIn(
             "using FModalWork = "
-            "TUnrealBridgeCancellableWork<TSharedPtr<FJsonObject>>;",
+            "TTetherCancellableWork<TSharedPtr<FJsonObject>>;",
             self.server,
         )
         self.assertGreaterEqual(self.server.count("Pending->Work.TryCancel"), 2)
@@ -69,7 +69,7 @@ class CancellableWorkSourceContractTests(unittest.TestCase):
 
     def test_background_worker_owns_thread_safe_server_lifetime(self):
         self.assertIn(
-            "TSharedRef<FUnrealBridgeServer, ESPMode::ThreadSafe> Self = AsShared();",
+            "TSharedRef<FTetherServer, ESPMode::ThreadSafe> Self = AsShared();",
             self.server,
         )
         self.assertIn("FFunctionGraphTask::CreateAndDispatchWhenReady", self.server)

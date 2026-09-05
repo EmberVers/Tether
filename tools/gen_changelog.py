@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Generate a Markdown changelog by diffing two snapshots of bridge_manifest.json.
+"""Generate a Markdown changelog by diffing two snapshots of tether_manifest.json.
 
-The manifest at `.claude/skills/unreal-bridge/scripts/bridge_manifest.json` is
-the source of truth for "what UFUNCTIONs / enums / structs the bridge exposes"
+The manifest at `.claude/skills/tether/scripts/tether_manifest.json` is
+the source of truth for "what UFUNCTIONs / enums / structs the tether exposes"
 — it's regenerated via `tools/gen_manifest.py` and committed alongside feature
 PRs. This tool reads two git refs of that file, computes the diff, and emits
 markdown grouped by library.
@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Optional
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-MANIFEST_PATH = ".claude/skills/unreal-bridge/scripts/bridge_manifest.json"
+MANIFEST_PATH = ".claude/skills/tether/scripts/tether_manifest.json"
 
 # Windows consoles in non-en locales (e.g. cp936) can't encode emojis used in
 # section headers — reconfigure stdout to UTF-8 with replace fallback.
@@ -130,7 +130,7 @@ def diff_libraries(old: dict, new: dict) -> dict:
 def render_markdown(diff: dict, from_ref: str, to_ref: str,
                     old_meta: dict, new_meta: dict) -> str:
     out = []
-    out.append(f"# Bridge API Changelog")
+    out.append(f"# Tether API Changelog")
     out.append("")
     out.append(f"`{from_ref}` → `{to_ref}`")
     out.append("")
@@ -219,14 +219,14 @@ def render_markdown(diff: dict, from_ref: str, to_ref: str,
             out.append("")
 
     if not has_content:
-        out.append("*No bridge API changes between these refs.*")
+        out.append("*No tether API changes between these refs.*")
         out.append("")
 
     return "\n".join(out)
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Diff bridge_manifest.json across git refs.")
+    ap = argparse.ArgumentParser(description="Diff tether_manifest.json across git refs.")
     ap.add_argument("--from", dest="from_ref", default="origin/main",
                     help="Old git ref (default: origin/main)")
     ap.add_argument("--to", dest="to_ref", default="HEAD",

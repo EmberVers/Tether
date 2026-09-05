@@ -1,4 +1,4 @@
-"""Contract tests for the UnrealBridge plugin descriptor."""
+"""Contract tests for the Tether plugin descriptor."""
 
 from __future__ import annotations
 
@@ -10,22 +10,22 @@ from pathlib import Path
 DESCRIPTOR_PATH = (
     Path(__file__).resolve().parents[1]
     / "Plugin"
-    / "UnrealBridge"
-    / "UnrealBridge.uplugin"
+    / "Tether"
+    / "Tether.uplugin"
 )
 
 
 class PluginDescriptorTests(unittest.TestCase):
-    def test_bridge_module_is_excluded_from_commandlets(self):
+    def test_tether_module_is_excluded_from_commandlets(self):
         descriptor = json.loads(DESCRIPTOR_PATH.read_text(encoding="utf-8"))
-        bridge_modules = [
+        tether_modules = [
             module
             for module in descriptor["Modules"]
-            if module.get("Name") == "UnrealBridge"
+            if module.get("Name") == "Tether"
         ]
 
-        self.assertEqual(len(bridge_modules), 1)
-        self.assertEqual(bridge_modules[0].get("Type"), "EditorNoCommandlet")
+        self.assertEqual(len(tether_modules), 1)
+        self.assertEqual(tether_modules[0].get("Type"), "EditorNoCommandlet")
 
 
 if __name__ == "__main__":

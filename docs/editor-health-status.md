@@ -10,7 +10,7 @@ remains discoverable and usable for the six base exact commands, while the
 command automatically:
 
 ```bash
-python .claude/skills/unreal-bridge/scripts/bridge.py --json status
+python .claude/skills/tether/scripts/tether.py --json status
 ```
 
 ## Ownership and update flow

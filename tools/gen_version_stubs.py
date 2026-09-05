@@ -27,33 +27,33 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-PUBLIC = REPO_ROOT / "Plugin" / "UnrealBridge" / "Source" / "UnrealBridge" / "Public"
-PRIVATE = REPO_ROOT / "Plugin" / "UnrealBridge" / "Source" / "UnrealBridge" / "Private"
+PUBLIC = REPO_ROOT / "Plugin" / "Tether" / "Source" / "Tether" / "Public"
+PRIVATE = REPO_ROOT / "Plugin" / "Tether" / "Source" / "Tether" / "Private"
 
 # Each entry: header stem, scope ("all" wraps every UFUNCTION in the class;
 # "function" wraps just one named UFUNCTION; "functions" wraps every name in
 # the supplied list — used when a library has a handful of 5.7-gated funcs
 # alongside many version-stable ones).
 TARGETS: list[dict] = [
-    {"name": "UnrealBridgeNiagaraLibrary",       "scope": "all"},
-    {"name": "UnrealBridgeRigLibrary",            "scope": "all"},
-    {"name": "UnrealBridgeStateTreeLibrary",      "scope": "all"},
-    {"name": "UnrealBridgeSmartObjectLibrary",    "scope": "all"},
-    {"name": "UnrealBridgeChooserLibrary",        "scope": "all"},
-    {"name": "UnrealBridgePoseSearchLibrary",     "scope": "all"},
-    {"name": "UnrealBridgeMaterialLibrary",       "scope": "all"},
-    {"name": "UnrealBridgeNavigationLibrary",     "scope": "all"},
-    {"name": "UnrealBridgeGeometryLibrary",       "scope": "all"},
-    {"name": "UnrealBridgePCGLibrary",             "scope": "all"},
-    {"name": "UnrealBridgeDataTableLibrary",      "scope": "function", "function": "CopyDataTableRows"},
-    {"name": "UnrealBridgeBlueprintLibrary",      "scope": "function", "function": "AddAsyncActionNode"},
-    {"name": "UnrealBridgeGameplayAbilityLibrary","scope": "function", "function": "AddAbilityTaskNode"},
-    {"name": "UnrealBridgePerfLibrary",           "scope": "functions",
+    {"name": "TetherNiagaraLibrary",       "scope": "all"},
+    {"name": "TetherRigLibrary",            "scope": "all"},
+    {"name": "TetherStateTreeLibrary",      "scope": "all"},
+    {"name": "TetherSmartObjectLibrary",    "scope": "all"},
+    {"name": "TetherChooserLibrary",        "scope": "all"},
+    {"name": "TetherPoseSearchLibrary",     "scope": "all"},
+    {"name": "TetherMaterialLibrary",       "scope": "all"},
+    {"name": "TetherNavigationLibrary",     "scope": "all"},
+    {"name": "TetherGeometryLibrary",       "scope": "all"},
+    {"name": "TetherPCGLibrary",             "scope": "all"},
+    {"name": "TetherDataTableLibrary",      "scope": "function", "function": "CopyDataTableRows"},
+    {"name": "TetherBlueprintLibrary",      "scope": "function", "function": "AddAsyncActionNode"},
+    {"name": "TetherGameplayAbilityLibrary","scope": "function", "function": "AddAbilityTaskNode"},
+    {"name": "TetherPerfLibrary",           "scope": "functions",
         "functions": [
             "GetLumenDiagnostics", "GetNaniteStats",
             # M4-5 + M5/M6/M7/M8: every UFUNCTION inside the
             # `#if !UE_VERSION_OLDER_THAN(5, 7, 0)` block in
-            # UnrealBridgePerfLibrary.cpp lines 3089-4437. Functions outside
+            # TetherPerfLibrary.cpp lines 3089-4437. Functions outside
             # that block (BeginAutoHitchCapture / EndAutoHitchCapture /
             # GetAutoHitchState / GetFrameTimePercentiles) compile on every
             # supported version and don't need stubs.
@@ -70,7 +70,7 @@ TARGETS: list[dict] = [
         ]},
 ]
 
-# Class line: `class [UNREALBRIDGE_API] UFoo : public UBlueprintFunctionLibrary`.
+# Class line: `class [TETHER_API] UFoo : public UBlueprintFunctionLibrary`.
 UCLASS_RE = re.compile(r"\bclass\s+(?:\w+_API\s+)?(\w+)\s*:\s*public\s+UBlueprintFunctionLibrary\b")
 
 # UFUNCTION(...)\nstatic <ret> <name>(<params>); — one level of nested parens.
@@ -149,17 +149,17 @@ def render_stub(class_name: str, func: dict) -> str:
         f'\tUE_LOG(LogTemp, Warning, '
         f'TEXT("{class_name}::{name} requires UE 5.7+ — call ignored on this engine version"));\n'
     )
-    if class_name == "UUnrealBridgeStateTreeLibrary" and name == "GetLastStateTreeError":
+    if class_name == "UTetherStateTreeLibrary" and name == "GetLastStateTreeError":
         body = '\treturn TEXT("StateTree authoring API requires Unreal Engine 5.7+");\n'
-    elif class_name == "UUnrealBridgeSmartObjectLibrary" and name == "GetLastSmartObjectError":
+    elif class_name == "UTetherSmartObjectLibrary" and name == "GetLastSmartObjectError":
         body = '\treturn TEXT("Smart Object API requires Unreal Engine 5.7+");\n'
-    elif class_name == "UUnrealBridgeRigLibrary" and name == "GetLastRigError":
+    elif class_name == "UTetherRigLibrary" and name == "GetLastRigError":
         body = '\treturn TEXT("Control Rig / IK Rig authoring API requires Unreal Engine 5.7+");\n'
-    elif class_name == "UUnrealBridgeNiagaraLibrary" and name == "GetLastNiagaraError":
+    elif class_name == "UTetherNiagaraLibrary" and name == "GetLastNiagaraError":
         body = '\treturn TEXT("Niagara authoring API requires Unreal Engine 5.7+");\n'
-    elif class_name == "UUnrealBridgeMaterialLibrary" and name == "RefreshTextureResource":
+    elif class_name == "UTetherMaterialLibrary" and name == "RefreshTextureResource":
         body = (
-            '\tFBridgeTextureRefreshResult Result;\n'
+            '\tFTetherTextureRefreshResult Result;\n'
             '\tResult.Error = TEXT("Texture resource refresh requires Unreal Engine 5.7+");\n'
             '\treturn Result;\n'
         )

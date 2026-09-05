@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Add Category="UnrealBridge|<area>" to UPROPERTY/UFUNCTION declarations in
+"""Add Category="Tether|<area>" to UPROPERTY/UFUNCTION declarations in
 plugin public headers that are exposed to Blueprints or the editor but lack a
 Category specifier.
 
@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-PUBLIC = REPO_ROOT / "Plugin" / "UnrealBridge" / "Source" / "UnrealBridge" / "Public"
+PUBLIC = REPO_ROOT / "Plugin" / "Tether" / "Source" / "Tether" / "Public"
 
 EXPOSING = re.compile(
     r"\b(?:"
@@ -41,12 +41,12 @@ DECL = re.compile(r"\b(UPROPERTY|UFUNCTION)\(((?:[^()]|\([^()]*\))*)\)")
 # Per-file-stem overrides where the derived name doesn't match the
 # convention already used in existing UFUNCTIONs.
 OVERRIDE: dict[str, str] = {
-    "UnrealBridgeAnimLibrary": "UnrealBridge|Animation",
-    "UnrealBridgeReactiveTypes": "UnrealBridge|Reactive",
-    "UnrealBridgeReactiveAdapter": "UnrealBridge|Reactive",
-    "UnrealBridgeReactiveListeners": "UnrealBridge|Reactive",
-    "UnrealBridgeReactiveSubsystem": "UnrealBridge|Reactive",
-    "UnrealBridgeTestAttributeSet": "BridgeTest",
+    "TetherAnimLibrary": "Tether|Animation",
+    "TetherReactiveTypes": "Tether|Reactive",
+    "TetherReactiveAdapter": "Tether|Reactive",
+    "TetherReactiveListeners": "Tether|Reactive",
+    "TetherReactiveSubsystem": "Tether|Reactive",
+    "TetherTestAttributeSet": "TetherTest",
 }
 
 
@@ -54,13 +54,13 @@ def category_for(stem: str) -> str:
     if stem in OVERRIDE:
         return OVERRIDE[stem]
     s = stem
-    if s.startswith("UnrealBridge"):
-        s = s[len("UnrealBridge"):]
+    if s.startswith("Tether"):
+        s = s[len("Tether"):]
     if s.endswith("Library"):
         s = s[: -len("Library")]
     if not s:
-        s = "Bridge"
-    return f"UnrealBridge|{s}"
+        s = "Tether"
+    return f"Tether|{s}"
 
 
 def transform_text(text: str, category: str) -> tuple[str, int]:

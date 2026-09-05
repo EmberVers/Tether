@@ -1,4 +1,4 @@
-# UnrealBridge — engine version compatibility
+# Tether — engine version compatibility
 
 The plugin claims **Unreal Engine 5.3+**. The build matrix in
 `tools/build_matrix.py` has verified clean BuildPlugin against 5.3 / 5.4 /
@@ -16,17 +16,17 @@ verifies the gates by compiling the plugin against each engine version.
 Each library below is wrapped in `#if !UE_VERSION_OLDER_THAN(5, 7, 0)`. On 5.4
 its `.h` and `.cpp` compile to empty translation units, no `UCLASS` is
 registered, and calling any of its UFUNCTIONs from Python on a 5.4 build will
-fail with "no such function on UnrealBridgeXxxLibrary".
+fail with "no such function on TetherXxxLibrary".
 
 | Library | Reason |
 |---|---|
-| `UnrealBridgeChooserLibrary` | `OutputObjectColumn.h` doesn't exist in 5.4 (added with the Chooser plugin's output-column rewrite); other Chooser internals shifted heavily 5.4 → 5.7 |
-| `UnrealBridgePoseSearchLibrary` | Core API rewritten: `UPoseSearchSchema::GetRoledSkeletons`, `UPoseSearchDatabase::GetNumAnimationAssets` / `GetDatabaseAnimationAsset`, and `FPoseSearchDatabaseAnimationAsset` are all 5.5+ additions |
-| `UnrealBridgeNavigationLibrary` | `ARecastNavMesh::GetDebugGeometryForTile` 2nd arg type changed (`int32` → `FNavTileRef`) and the "default tile = aggregate all" sentinel doesn't exist on 5.4 |
+| `TetherChooserLibrary` | `OutputObjectColumn.h` doesn't exist in 5.4 (added with the Chooser plugin's output-column rewrite); other Chooser internals shifted heavily 5.4 → 5.7 |
+| `TetherPoseSearchLibrary` | Core API rewritten: `UPoseSearchSchema::GetRoledSkeletons`, `UPoseSearchDatabase::GetNumAnimationAssets` / `GetDatabaseAnimationAsset`, and `FPoseSearchDatabaseAnimationAsset` are all 5.5+ additions |
+| `TetherNavigationLibrary` | `ARecastNavMesh::GetDebugGeometryForTile` 2nd arg type changed (`int32` → `FNavTileRef`) and the "default tile = aggregate all" sentinel doesn't exist on 5.4 |
 
 ### Whole-library safe-stub gates
 
-`UnrealBridgeMaterialLibrary` keeps its reflected surface on every supported
+`TetherMaterialLibrary` keeps its reflected surface on every supported
 engine, including the material-instance layer-stack snapshot/full
 replacement/copy API and `RefreshTextureResource()`. The real implementation
 remains gated to UE 5.7+; UE 5.3-5.6 compile generated safe stubs that log the
@@ -35,7 +35,7 @@ texture-refresh stub returns `bSuccess=false` with an explanatory error. This
 preserves reflection compatibility without widening the material
 implementation's engine-version scope.
 
-`UnrealBridgeStateTreeLibrary` keeps its reflected class and kwargs wrapper on
+`TetherStateTreeLibrary` keeps its reflected class and kwargs wrapper on
 all supported engines, but its real implementation is gated by
 `!UE_VERSION_OLDER_THAN(5, 7, 0)`. UE 5.3-5.6 compile generated safe stubs;
 `IsStateTreeApiAvailable()` returns false and
@@ -43,17 +43,17 @@ all supported engines, but its real implementation is gated by
 stable automation surface without compiling against StateTree editor APIs whose
 data model and property-binding contracts changed substantially before 5.7.
 
-`UnrealBridgeSmartObjectLibrary` uses the same reflected-header plus generated
+`TetherSmartObjectLibrary` uses the same reflected-header plus generated
 inverse-stub pattern. Its 80 authoring, world, collection, runtime claim, and
 entrance APIs are functional on UE 5.7+; on UE 5.3-5.6,
 `IsSmartObjectApiAvailable()` returns false and
 `GetLastSmartObjectError()` explains the requirement. The `SmartObjectsModule`,
 `SmartObjectsEditorModule`, and `WorldConditions` module dependencies are added
-from `UnrealBridge.Build.cs` only for UE 5.7+, and the plugin references are
+from `Tether.Build.cs` only for UE 5.7+, and the plugin references are
 optional, so UE 5.3 can still resolve and compile the descriptor even though it
 does not ship the SmartObjects plugin.
 
-`UnrealBridgeRigLibrary` also uses the reflected-header plus generated
+`TetherRigLibrary` also uses the reflected-header plus generated
 inverse-stub pattern. Its 98 Control Rig hierarchy/RigVM, IK Rig solver/goal/
 chain, IK Retargeter mapping/pose/profile/batch, transient evaluation, and
 animation-quality APIs are functional on UE 5.7+. On UE 5.3-5.6,
@@ -65,7 +65,7 @@ module dependencies are added only on 5.7+; the `ControlRig` and `IKRig`
 plugin descriptor dependencies are optional so they do not block older engine
 builds.
 
-`UnrealBridgeNiagaraLibrary` follows the same reflected-header plus generated
+`TetherNiagaraLibrary` follows the same reflected-header plus generated
 inverse-stub pattern. Its 64 System/Emitter lifecycle and recipe, stack module
 and input, parameter, renderer/material/binding, compiler/audit, production
 preset, and transient preview APIs are functional on UE 5.7+. On UE 5.3-5.6,
@@ -79,7 +79,7 @@ it does not block older engine builds.
 
 ### In-library safe no-op gate: UMG MVVM
 
-`UnrealBridgeUMGLibrary` itself remains fully reflected on every supported
+`TetherUMGLibrary` itself remains fully reflected on every supported
 engine: Widget Blueprint/tree/layout/style authoring, widget animations,
 UI-material brush assignment, compile validation, and non-MVVM PIE validation
 all compile normally on UE 5.3-5.6. Its 11 MVVM-specific authoring/runtime
@@ -90,7 +90,7 @@ false result; the UFUNCTION remains present, so agents get a stable wrapper and
 an actionable diagnostic instead of a missing method or failed build.
 
 `FieldNotification`, `ModelViewViewModel`, and `ModelViewViewModelBlueprint`
-are added by `UnrealBridge.Build.cs` only on UE 5.7+, and the
+are added by `Tether.Build.cs` only on UE 5.7+, and the
 `ModelViewViewModel` plugin reference is optional. This is an in-library gate,
 not a generated whole-library stub, because most UMG functionality has no MVVM
 dependency and remains useful on lower versions.
@@ -99,9 +99,9 @@ dependency and remains useful on lower versions.
 
 | UFUNCTION | Reason |
 |---|---|
-| `UnrealBridgeDataTableLibrary::CopyDataTableRows` | `UDataTable::AddRow(FName, const uint8*, UScriptStruct*)` 3-arg overload is 5.7+ |
-| `UnrealBridgeBlueprintLibrary::AddAsyncActionNode` | `UK2Node_AsyncAction::InitializeProxyFromFunction` doesn't exist on 5.4 |
-| `UnrealBridgeGameplayAbilityLibrary::AddAbilityTaskNode` | `UK2Node_LatentAbilityCall` UCLASS in `GameplayAbilitiesEditor` is non-API in 5.4; `NewObject<>` of it fails to link from external modules |
+| `TetherDataTableLibrary::CopyDataTableRows` | `UDataTable::AddRow(FName, const uint8*, UScriptStruct*)` 3-arg overload is 5.7+ |
+| `TetherBlueprintLibrary::AddAsyncActionNode` | `UK2Node_AsyncAction::InitializeProxyFromFunction` doesn't exist on 5.4 |
+| `TetherGameplayAbilityLibrary::AddAbilityTaskNode` | `UK2Node_LatentAbilityCall` UCLASS in `GameplayAbilitiesEditor` is non-API in 5.4; `NewObject<>` of it fails to link from external modules |
 
 ## Inline shims (function works on both, different code paths)
 
@@ -110,22 +110,22 @@ appropriate code path internally.
 
 | Function | What older engines lack | Shim |
 |---|---|---|
-| `UnrealBridgeAnimLibrary::CopyAndApplyAnimationModifiers` | 5.5 lacks `UAnimationModifiersAssetUserData::AddAnimationModifierOfClass` | Existing matching modifiers are still copied and applied; when a target modifier would need to be created, log a warning and skip that modifier on 5.5 and older |
-| `UnrealBridgeEditorLibrary::CaptureActiveViewportAsDisplayed` | 5.5 lacks `FWindowsWindow::GetWindowPixels` | Log a warning and use the existing Slate screenshot fallback on 5.5 and older |
-| `UnrealBridgeAnimLibrary::SetAnimStateDefault` | `UAnimStateEntryNode::GetOutputPin()` | walk `Entry->Pins[]` for the first `EGPD_Output` pin |
-| `UnrealBridgeGameplayAbilityLibrary::GetGameplayAbilityBlueprintInfo` and `ListGameplayAbilitiesByTag` | `UGameplayAbility::GetAssetTags()` | read legacy `CDO->AbilityTags` field |
-| `UnrealBridgeBlueprintLibrary::GetPIENodeCoverage` | `FKismetDebugUtilities::FindSourceNodeForCodeLocation` const-correctness | `const_cast<UFunction*>(Func)` |
-| `UnrealBridgeGameplayTagLibrary` — `EnsureSourceRedirectsPersisted`, `RenameGameplayTag`, `RemoveGameplayTagRedirect`, `ListGameplayTagRedirects` | 5.5 lacks `UGameplayTagsList::GameplayTagRedirects` (on `UGameplayTagsSettings` only); `RenameTagInINI` 3-arg overload added in 5.7 | `!UE_VERSION_OLDER_THAN(5, 6, 0)`: use `SourceTagList->GameplayTagRedirects`; legacy: parse per-source `+GameplayTagRedirects=` lines from disk ini. `RenameTagInINI` gated at `!UE_VERSION_OLDER_THAN(5, 7, 0)` for the `bRenameChildren` parameter |
-| `UnrealBridgeAnimLibrary` — `GetAnimGraphNodes`, `ListAnimSlotsInABP`, `DumpAnimNodeProperties` | `UAnimGraphNode_Base::GetFNode` / `GetFNodeProperty` / `GetFNodeType` were `protected` before 5.4 (made `public` in 5.4) | `BridgeAnimNodeAccess::*` shim — gated at `UE_VERSION_OLDER_THAN(5, 4, 0)`, exposes the protected getters via `using`-declaration in a derived helper struct (compile-time access bypass, never instantiated) |
-| All `TArray::Pop` / `RemoveAt` call sites with explicit shrinking flag | `EAllowShrinking` enum added in 5.4 (replaced `bool bAllowShrinking`) | `Plugin/.../Private/UnrealBridgeCompat.h` — defines `namespace EAllowShrinking { static constexpr bool No, Yes; }` on pre-5.4 so `Array.Pop(EAllowShrinking::No)` resolves to the legacy `bool` overload |
-| `UnrealBridgeBlueprintLibrary` — Blueprint exception/debug paths | `Blueprint/BlueprintExceptionInfo.h` is 5.4+ only (split out of `UObject/Script.h`) | `#if !UE_VERSION_OLDER_THAN(5, 4, 0)` around the include; on 5.3 `FBlueprintExceptionInfo` is reachable via the already-included `UObject/Script.h` |
-| `UnrealBridgeGameplayAbilityLibrary::ScanProperty` map/set iteration | 5.4 added `FScriptMapHelper::GetKeyPtr(FIterator)` / `GetValuePtr(FIterator)` / `FScriptSetHelper::GetElementPtr(FIterator)` overloads; 5.3 only has the `int32` overloads; 5.8 removed the deprecated `FIterator::operator*() → int32` so `*It` no longer compiles there | Per-call gate `#if UE_VERSION_OLDER_THAN(5, 4, 0)`: pass `*It` to the int32 overload on 5.3; on 5.4+ pass `It` directly to the FIterator overload (works through 5.8) |
-| `UnrealBridgeBlueprintLibrary::ExecuteBlueprintFunction` and `UnrealBridgeLevelLibrary::ExecuteActorFunction` JSON args | 5.8 changed `FJsonObjectConverter::JsonAttributesToUStruct`'s first parameter from `TMap<FString, ...>` to `TMap<UE::FSharedString, ...>` (also `FJsonObject::Values`) | `Private/UnrealBridgeCompat.h` defines `FBridgeJsonAttrsKey` (`FString` on <5.8, `UE::FSharedString` on 5.8+); call sites build the map with that alias and `.Add(FBridgeJsonAttrsKey(*Prop->GetName()), Val)` works on every version (both `FString` and `UE::FSharedString` have a `const TCHAR*` ctor) |
-| `UnrealBridgeReactiveSubsystem` JSON-object key copy | Same `FJsonObject::Values` 5.8 widening as above — `Pair.Key` is `UE::FSharedString` on 5.8 and won't convert implicitly to `FString` map key | Use `FString(*Pair.Key)` at the insertion site — `operator*` on both string types returns `const TCHAR*`, so the construction works on every version with no macro |
-| `UnrealBridgeChooserLibrary::DeleteChooserRow` | 5.8 changed `FChooserColumnBase::DeleteRows` from `const TArray<uint32>&` to `TArrayView<int>` | `#if !UE_VERSION_OLDER_THAN(5, 8, 0)`: build a stack `int[]` and pass `MakeArrayView`; legacy: keep the `TArray<uint32>` form |
-| `UnrealBridgeChooserLibrary::EvaluateChooser` debug-row readback | 5.8 renamed `UChooserTable::GetDebugSelectedRow() → int32` to `GetDebugSelectedRows() → const TArray<int32>&` (multi-row support) | `#if !UE_VERSION_OLDER_THAN(5, 8, 0)`: read `GetDebugSelectedRows()[0]` if non-empty, else `-1`; legacy: keep the singular `GetDebugSelectedRow()` |
-| `UnrealBridgeGeometryLibrary::DisplaceMeshFromTexture` | 5.8 inserted a new `FGeometryScriptAdaptiveTessellationOptions` parameter (position 5) into `UGeometryScriptLibrary_MeshDeformFunctions::ApplyDisplaceFromTextureMap` | `#if !UE_VERSION_OLDER_THAN(5, 8, 0)`: pass a default-constructed `FGeometryScriptAdaptiveTessellationOptions{}` between `Options` and `UVChannel`; legacy: omit the parameter |
-| `UnrealBridgeRigLibrary::BatchRetargetAnimations` | 5.8 deprecated the positional `UIKRetargetBatchOperation::DuplicateAndRetarget` API, inserted target-path/source-path arguments, and introduced `FIKRetargetBatchOperationInputs` + `RunBatchRetarget` | On 5.8+, populate the input struct and pass the destination directly to `RunBatchRetarget`; on 5.7, use `DuplicateAndRetarget` and move the returned assets through AssetTools. The bridge UFUNCTION signature and result remain identical. |
+| `TetherAnimLibrary::CopyAndApplyAnimationModifiers` | 5.5 lacks `UAnimationModifiersAssetUserData::AddAnimationModifierOfClass` | Existing matching modifiers are still copied and applied; when a target modifier would need to be created, log a warning and skip that modifier on 5.5 and older |
+| `TetherEditorLibrary::CaptureActiveViewportAsDisplayed` | 5.5 lacks `FWindowsWindow::GetWindowPixels` | Log a warning and use the existing Slate screenshot fallback on 5.5 and older |
+| `TetherAnimLibrary::SetAnimStateDefault` | `UAnimStateEntryNode::GetOutputPin()` | walk `Entry->Pins[]` for the first `EGPD_Output` pin |
+| `TetherGameplayAbilityLibrary::GetGameplayAbilityBlueprintInfo` and `ListGameplayAbilitiesByTag` | `UGameplayAbility::GetAssetTags()` | read legacy `CDO->AbilityTags` field |
+| `TetherBlueprintLibrary::GetPIENodeCoverage` | `FKismetDebugUtilities::FindSourceNodeForCodeLocation` const-correctness | `const_cast<UFunction*>(Func)` |
+| `TetherGameplayTagLibrary` — `EnsureSourceRedirectsPersisted`, `RenameGameplayTag`, `RemoveGameplayTagRedirect`, `ListGameplayTagRedirects` | 5.5 lacks `UGameplayTagsList::GameplayTagRedirects` (on `UGameplayTagsSettings` only); `RenameTagInINI` 3-arg overload added in 5.7 | `!UE_VERSION_OLDER_THAN(5, 6, 0)`: use `SourceTagList->GameplayTagRedirects`; legacy: parse per-source `+GameplayTagRedirects=` lines from disk ini. `RenameTagInINI` gated at `!UE_VERSION_OLDER_THAN(5, 7, 0)` for the `bRenameChildren` parameter |
+| `TetherAnimLibrary` — `GetAnimGraphNodes`, `ListAnimSlotsInABP`, `DumpAnimNodeProperties` | `UAnimGraphNode_Base::GetFNode` / `GetFNodeProperty` / `GetFNodeType` were `protected` before 5.4 (made `public` in 5.4) | `TetherAnimNodeAccess::*` shim — gated at `UE_VERSION_OLDER_THAN(5, 4, 0)`, exposes the protected getters via `using`-declaration in a derived helper struct (compile-time access bypass, never instantiated) |
+| All `TArray::Pop` / `RemoveAt` call sites with explicit shrinking flag | `EAllowShrinking` enum added in 5.4 (replaced `bool bAllowShrinking`) | `Plugin/.../Private/TetherCompat.h` — defines `namespace EAllowShrinking { static constexpr bool No, Yes; }` on pre-5.4 so `Array.Pop(EAllowShrinking::No)` resolves to the legacy `bool` overload |
+| `TetherBlueprintLibrary` — Blueprint exception/debug paths | `Blueprint/BlueprintExceptionInfo.h` is 5.4+ only (split out of `UObject/Script.h`) | `#if !UE_VERSION_OLDER_THAN(5, 4, 0)` around the include; on 5.3 `FBlueprintExceptionInfo` is reachable via the already-included `UObject/Script.h` |
+| `TetherGameplayAbilityLibrary::ScanProperty` map/set iteration | 5.4 added `FScriptMapHelper::GetKeyPtr(FIterator)` / `GetValuePtr(FIterator)` / `FScriptSetHelper::GetElementPtr(FIterator)` overloads; 5.3 only has the `int32` overloads; 5.8 removed the deprecated `FIterator::operator*() → int32` so `*It` no longer compiles there | Per-call gate `#if UE_VERSION_OLDER_THAN(5, 4, 0)`: pass `*It` to the int32 overload on 5.3; on 5.4+ pass `It` directly to the FIterator overload (works through 5.8) |
+| `TetherBlueprintLibrary::ExecuteBlueprintFunction` and `TetherLevelLibrary::ExecuteActorFunction` JSON args | 5.8 changed `FJsonObjectConverter::JsonAttributesToUStruct`'s first parameter from `TMap<FString, ...>` to `TMap<UE::FSharedString, ...>` (also `FJsonObject::Values`) | `Private/TetherCompat.h` defines `FTetherJsonAttrsKey` (`FString` on <5.8, `UE::FSharedString` on 5.8+); call sites build the map with that alias and `.Add(FTetherJsonAttrsKey(*Prop->GetName()), Val)` works on every version (both `FString` and `UE::FSharedString` have a `const TCHAR*` ctor) |
+| `TetherReactiveSubsystem` JSON-object key copy | Same `FJsonObject::Values` 5.8 widening as above — `Pair.Key` is `UE::FSharedString` on 5.8 and won't convert implicitly to `FString` map key | Use `FString(*Pair.Key)` at the insertion site — `operator*` on both string types returns `const TCHAR*`, so the construction works on every version with no macro |
+| `TetherChooserLibrary::DeleteChooserRow` | 5.8 changed `FChooserColumnBase::DeleteRows` from `const TArray<uint32>&` to `TArrayView<int>` | `#if !UE_VERSION_OLDER_THAN(5, 8, 0)`: build a stack `int[]` and pass `MakeArrayView`; legacy: keep the `TArray<uint32>` form |
+| `TetherChooserLibrary::EvaluateChooser` debug-row readback | 5.8 renamed `UChooserTable::GetDebugSelectedRow() → int32` to `GetDebugSelectedRows() → const TArray<int32>&` (multi-row support) | `#if !UE_VERSION_OLDER_THAN(5, 8, 0)`: read `GetDebugSelectedRows()[0]` if non-empty, else `-1`; legacy: keep the singular `GetDebugSelectedRow()` |
+| `TetherGeometryLibrary::DisplaceMeshFromTexture` | 5.8 inserted a new `FGeometryScriptAdaptiveTessellationOptions` parameter (position 5) into `UGeometryScriptLibrary_MeshDeformFunctions::ApplyDisplaceFromTextureMap` | `#if !UE_VERSION_OLDER_THAN(5, 8, 0)`: pass a default-constructed `FGeometryScriptAdaptiveTessellationOptions{}` between `Options` and `UVChannel`; legacy: omit the parameter |
+| `TetherRigLibrary::BatchRetargetAnimations` | 5.8 deprecated the positional `UIKRetargetBatchOperation::DuplicateAndRetarget` API, inserted target-path/source-path arguments, and introduced `FIKRetargetBatchOperationInputs` + `RunBatchRetarget` | On 5.8+, populate the input struct and pass the destination directly to `RunBatchRetarget`; on 5.7, use `DuplicateAndRetarget` and move the returned assets through AssetTools. The tether UFUNCTION signature and result remain identical. |
 
 ## How the gate macro works
 
@@ -172,7 +172,7 @@ defined as a preprocessor macro` followed by `C4067`. This is an
 `#elif defined(__has_feature) / #if __has_feature(...)`), unrelated to
 the plugin.
 
-UnrealBridge code itself compiles cleanly against 5.3 / 5.4 — the
+Tether code itself compiles cleanly against 5.3 / 5.4 — the
 break is in `SharedPCH.UnrealEd.Cpp20.cpp`, an engine TU. Plugin
 `Build.cs` settings don't reach into engine PCH compilation, and UBT
 5.3 / 5.4 don't expose a user-configurable `AdditionalArguments` knob

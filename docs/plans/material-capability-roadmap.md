@@ -9,7 +9,7 @@
 
 硬约束：成品质量对齐 AAA 项目常见实践（SM5+ / Lumen / Nanite 就绪、正确的 ShadingModel / MaterialDomain / 纹理压缩 / sampler 复用 / 静态分支），性能口径按"不退化 GPU 时长、不超 sampler/ instruction 预算"衡量。
 
-最后更新：2026-04-24（v1.0 — **Matrix-influenced AAA upgrade** 应用到 PBR 相关模板. 基于读过的 Matrix demo `M_Clothing` master 的 playbook，本次新增 3 条 HLSL snippet (`BridgeCharlieSheenGrazing` / `BridgeRoughnessRemap4Pt` / `BridgeBentNormalAO`)、2 条 `_common` helper (`add_roughness_remap_4pt` / `add_charlie_sheen_scalars`)，升级 `M_Character_Armor` v2 + `M_Fabric_PBR` v2: A_ 前缀参数命名、4-point 粗糙度重映射、Bent Normal 纹理 + micro-AO、Charlie sheen grazing rim 加到 Emissive、Matrix `Do*` 静态开关命名法. `M_Character_PBR` thin-wrapper 自动继承 v2. 全 17 模板回归 0 warnings. v0.9 交付：#9 Weapon_Hero POM + #10 Layered→MaterialLayerStacks + CurveAtlas deferred.）
+最后更新：2026-04-24（v1.0 — **Matrix-influenced AAA upgrade** 应用到 PBR 相关模板. 基于读过的 Matrix demo `M_Clothing` master 的 playbook，本次新增 3 条 HLSL snippet (`TetherCharlieSheenGrazing` / `TetherRoughnessRemap4Pt` / `TetherBentNormalAO`)、2 条 `_common` helper (`add_roughness_remap_4pt` / `add_charlie_sheen_scalars`)，升级 `M_Character_Armor` v2 + `M_Fabric_PBR` v2: A_ 前缀参数命名、4-point 粗糙度重映射、Bent Normal 纹理 + micro-AO、Charlie sheen grazing rim 加到 Emissive、Matrix `Do*` 静态开关命名法. `M_Character_PBR` thin-wrapper 自动继承 v2. 全 17 模板回归 0 warnings. v0.9 交付：#9 Weapon_Hero POM + #10 Layered→MaterialLayerStacks + CurveAtlas deferred.）
 
 ---
 
@@ -19,27 +19,27 @@
 |---|---|---|
 | M1 读 / 观察 | ✅ 全部交付 | get_material_info / graph / stats / compile_errors / preview / preview_complexity / list_functions / get_function / list_instance_chain / get_parameter_collection |
 | M2 表达式工厂 + 图写原语 | ✅ 全部交付 | create_material / MI / MF + add_material_expression (35+ 类) + connect/disconnect (pin name 现在走 GetShortenPinName) + set_prop / add_comment / add_reroute / auto_layout / apply_material_graph_ops / compile_material / snapshot + diff |
-| M2.5 HLSL 片段库 | ✅ 全部交付 | BridgeSnippets.ush + add_custom_expression + list / get 共享片段；现有 snippet：Luminance, Unpack/Pack ORM, ACES, BlendAngleCorrectedNormals, DepthFade, DitherLODTransition, Hash21/31, ValueNoise3D, ThinFilmInterference, FBM3D, IQFlow3D, SwirledNoise3D, Voronoi2D，**2026-04-24 新增 3 条 Matrix-AAA**：`CharlieSheenGrazing` (view-dependent cloth rim-light 标量包络) / `RoughnessRemap4Pt` (4-point Low/SculptLow/SculptHigh/High piecewise) / `BentNormalAO` (bent-normal micro-AO) |
+| M2.5 HLSL 片段库 | ✅ 全部交付 | TetherSnippets.ush + add_custom_expression + list / get 共享片段；现有 snippet：Luminance, Unpack/Pack ORM, ACES, BlendAngleCorrectedNormals, DepthFade, DitherLODTransition, Hash21/31, ValueNoise3D, ThinFilmInterference, FBM3D, IQFlow3D, SwirledNoise3D, Voronoi2D，**2026-04-24 新增 3 条 Matrix-AAA**：`CharlieSheenGrazing` (view-dependent cloth rim-light 标量包络) / `RoughnessRemap4Pt` (4-point Low/SculptLow/SculptHigh/High piecewise) / `BentNormalAO` (bent-normal micro-AO) |
 | M6 参数迭代闭环 | ✅ 全部交付 | set_mi_params / set_mi_and_preview / sweep / MPC setter / diff / golden snapshot+compare |
 | M3 母材质模板 | ✅ 10 / 9 模板（原路线图 + M3-10 bonus） | **已交付**：M3-1 Character_PBR (thin wrapper over M3-2)、M3-2 Character_Armor、M3-3 Environment_Prop、M3-4 Foliage_Master、M3-5 **Weapon_Hero (dual-UV + 正弦脉冲 + UE 引擎 POM MF 调用经 `UsePOM` 静态开关；避开 M5-12；CurveAtlas deferred—Python binding gap)**、M3-6 Glass_Translucent、M3-7 **Layered → M_Layered_Stack (UE 标准 MaterialLayerStacks：3 × UMaterialFunctionMaterialLayer + 2 × UMaterialFunctionMaterialLayerBlend + 1 × MaterialAttributeLayers 节点，通过新 C++ UFUNCTION `SetMaterialAttributeLayers` 走官方 AppendBlendedLayer API)**、M3-8 UI_Unlit、M3-9 VFX (Unlit Additive + Translucent Soft)、M3-10 Fabric_PBR (独立 BC/N/AO/R/M 纹理 — Naughty-Dog / Sony-first-party 资产格式). |
-| M4 后处理材质 | ✅ 5 / 5 模板 + 全部 C++ 原语 | **已交付**：create_post_process_material / apply / remove / get_post_process_state + PP_Posterize、PP_Halftone、PP_Outline (4-neighbour depth gradient)、PP_Sketch (Sobel edge + crosshatch + posterize)、PP_ColorGradeLUT_Extended (2D-unwrapped LUT + 3-zone 分区曲线 + 饱和度)、PP_Film_Grain_AA (BridgeHash21 动态颗粒 + sub-LSB dither) |
+| M4 后处理材质 | ✅ 5 / 5 模板 + 全部 C++ 原语 | **已交付**：create_post_process_material / apply / remove / get_post_process_state + PP_Posterize、PP_Halftone、PP_Outline (4-neighbour depth gradient)、PP_Sketch (Sobel edge + crosshatch + posterize)、PP_ColorGradeLUT_Extended (2D-unwrapped LUT + 3-zone 分区曲线 + 饱和度)、PP_Film_Grain_AA (TetherHash21 动态颗粒 + sub-LSB dither) |
 | M5 Lint / 自动修复 | ✅ 13 / 13 规则 + auto_fix (4/4 fix IDs 全部 smoke-tested) | **已交付**：analyze_material 聚合 + 全部 13 条检查规则（M5-2..M5-13）+ 全部 4 个 auto_fix IDs：`drop_unused` (M5-3) + `samplersource_share` (M5-5) + `static_switch_conversion` (M5-6 Pattern 2 → StaticSwitchParameter，含 Lerp 改写 / ScalarParameter 清理 / 下游重连) + `inline_trivial_custom` (M5-11 → 17 种单运算模式：Add/Sub/Mul/Div/Saturate/Abs/Frac/Floor/Ceil/OneMinus/Lerp/Min/Max/Power/Dot/Normalize). 2026-04-24 在合成 material 上 smoke-tested 5/5 pass（StaticSwitch Lerp→Switch 转换 + 4 条 Custom→native 替换 + post-fix compile clean）. |
 
 ### 顺带交付（不在原路线图但相关）
 
-- **bridge 基础设施**：UDP 多播发现 (`239.255.42.99:9876`) + TCP 端口 `0` (OS 分配) + 可选 token 鉴权。`bridge.py` / `bridge_discovery.py` / SKILL.md / README.md 全部同步更新。
+- **tether 基础设施**：UDP 多播发现 (`239.255.42.99:9876`) + TCP 端口 `0` (OS 分配) + 可选 token 鉴权。`tether.py` / `tether_discovery.py` / SKILL.md / README.md 全部同步更新。
 - **pin name 兼容层**：`NormalizePinName` + `get_material_graph` 现在都走 `UMaterialGraphNode::GetShortenPinName`，"Coordinates" / "AGreaterThanB" / "TextureObject" 等长名自动短化成 UI-可见的 "UVs" / "A > B" / "Tex"，读写对称。这条是 M4 开发时发现的隐性坑，已修。
 - **模板共享基建**：`material_templates._common` — `OpList` 支持符号名 → `$N` 解析、未知名称早爆 KeyError；`ensure_master_material(rebuild=True)` 幂等重建；`guid_to_str()` 避开 UE Python `str(unreal.Guid)` 返回 `<Struct>` 的坑；`save_master()` 显式 asset.save (apply_ops compile=True 只编译不保存会在编辑器重启时丢失模板)。
-- **系统纹理 helper**（2026-04-24 随 M3-10 交付）：`ensure_default_masks_texture()` / `ensure_default_linear_texture()` 幂等创建 `/Game/BridgeTemplates/_System/T_White_{Masks,Linear}`（TC_MASKS + sRGB=False / TC_DEFAULT + sRGB=False）。**必须在独立 exec 里先跑**，不能跟 template build 同 exec — `Texture2DFactoryNew + save_asset` 会触发 asset-reference-completing 模态，跟 master build 同 exec 会死锁 GT（2026-04-24 踩过一次，feedback_split_asset_ops memory 已更新）. 引擎未 ship 合规的 Masks 白纹理 / LinearColor 白纹理，旧模板用 `WhiteSquareTexture` 喂 ORM 槽位会让 shader_map_ready 永远是 False.
+- **系统纹理 helper**（2026-04-24 随 M3-10 交付）：`ensure_default_masks_texture()` / `ensure_default_linear_texture()` 幂等创建 `/Game/TetherTemplates/_System/T_White_{Masks,Linear}`（TC_MASKS + sRGB=False / TC_DEFAULT + sRGB=False）。**必须在独立 exec 里先跑**，不能跟 template build 同 exec — `Texture2DFactoryNew + save_asset` 会触发 asset-reference-completing 模态，跟 master build 同 exec 会死锁 GT（2026-04-24 踩过一次，feedback_split_asset_ops memory 已更新）. 引擎未 ship 合规的 Masks 白纹理 / LinearColor 白纹理，旧模板用 `WhiteSquareTexture` 喂 ORM 槽位会让 shader_map_ready 永远是 False.
 
 ---
 
 ## 现状基线（2026-04-22）
 
-`UnrealBridgeMaterialLibrary` 只有一个函数：`get_material_instance_parameters(path)`，返回 MI 的参数覆盖列表。
+`TetherMaterialLibrary` 只有一个函数：`get_material_instance_parameters(path)`，返回 MI 的参数覆盖列表。
 
 更广阅能力分布：
-- **读 Master material**：零（`unreal.MaterialEditingLibrary` 暴露了 `get_material_expressions` / `get_material_property_input_node` 等 Python-side，但 bridge 没有结构化封装，也没有统计类信息）
+- **读 Master material**：零（`unreal.MaterialEditingLibrary` 暴露了 `get_material_expressions` / `get_material_property_input_node` 等 Python-side，但 tether 没有结构化封装，也没有统计类信息）
 - **写 Master material**：零（Python 侧 `MaterialEditingLibrary.create_material_expression` / `connect_material_expressions` 可用，但只能覆盖常用 30+ 种 `UMaterialExpression` 中的一部分；Material Functions / Material Layers / 静态开关 / CustomHLSL / Feature Level Switch 覆盖不齐）
 - **预览 / 截图**：`LevelLibrary.capture_*` 可以对场景 actor 截图，但没有"单独预览 Material 在标准球体 / 平面上"的一键能力（缺 `FPreviewScene` + 指定 mesh + 环境灯）
 - **统计**：零（指令数 / sampler 数 / texture lookup 数 / 每 feature level 成本 / 编译错误 — 全部没暴露）
@@ -146,34 +146,34 @@
 
 | # | 能力 | 工程量 | 备注 |
 |---|---|---|---|
-| M2.5-1 | `<Project>/Shaders/Private/BridgeSnippets.ush` 骨架 + 注册到 `FCoreDelegates::OnPostEngineInit` 的 `AddShaderSourceDirectoryMapping` | 小 | 共享 HLSL 片段集中存放；每个 snippet 有 header 注释（函数签名 / 输入输出 / 指令数估算 / 最低 feature level）。新增 snippet 时 agent 先查是否可复用 |
-| M2.5-2 | `add_custom_expression(material_path, hlsl_body, inputs, output_type, include_paths, description)` — 专门的 Custom 节点原语，`include_paths` 指向 `.ush`，`hlsl_body` 可以只写 `return BridgeNormalBlend(DetailN, BaseN, Strength);` | 中 | 封装 `UMaterialExpressionCustom` 的 `Inputs`（名字 + 类型）+ `OutputType` + `Code` + `IncludeFilePaths`。输入名是接口契约，不可重排 |
-| M2.5-3 | `register_shared_snippet(name, hlsl_source, signature, min_feature_level, instruction_estimate)` — 往 `BridgeSnippets.ush` 追加片段 + 索引更新 | 小 | 幂等；重跑同名覆盖。索引 JSON 存 `<Saved>/BridgeShaderSnippets.json`，用于 `list_shared_snippets` 查询 |
+| M2.5-1 | `<Project>/Shaders/Private/TetherSnippets.ush` 骨架 + 注册到 `FCoreDelegates::OnPostEngineInit` 的 `AddShaderSourceDirectoryMapping` | 小 | 共享 HLSL 片段集中存放；每个 snippet 有 header 注释（函数签名 / 输入输出 / 指令数估算 / 最低 feature level）。新增 snippet 时 agent 先查是否可复用 |
+| M2.5-2 | `add_custom_expression(material_path, hlsl_body, inputs, output_type, include_paths, description)` — 专门的 Custom 节点原语，`include_paths` 指向 `.ush`，`hlsl_body` 可以只写 `return TetherNormalBlend(DetailN, BaseN, Strength);` | 中 | 封装 `UMaterialExpressionCustom` 的 `Inputs`（名字 + 类型）+ `OutputType` + `Code` + `IncludeFilePaths`。输入名是接口契约，不可重排 |
+| M2.5-3 | `register_shared_snippet(name, hlsl_source, signature, min_feature_level, instruction_estimate)` — 往 `TetherSnippets.ush` 追加片段 + 索引更新 | 小 | 幂等；重跑同名覆盖。索引 JSON 存 `<Saved>/TetherShaderSnippets.json`，用于 `list_shared_snippets` 查询 |
 | M2.5-4 | `list_shared_snippets()` / `get_shared_snippet(name)` — 枚举已有片段 + 读取源码 | 小 | agent 在决定"新写还是复用"之前查一次 |
 | M2.5-5 | `evaluate_custom_vs_graph(material_path, subgraph_expr_guids, hlsl_alternative_code, hlsl_inputs)` — 两条路径都在 transient material 上编译一次，返回指令数 / sampler 数 / 编译错误对比，给建议 | 中 | 保障"HLSL 不是瞎上"；如果图版更便宜就不建议切 |
-| M2.5-6 | `inline_snippet_as_material_function(snippet_name, mf_path)` — 把一个 `.ush` 片段封装成 `UMaterialFunction`（输入 pin / 输出 pin / 内部一个 Custom 节点） | 中 | 让图里复用 snippet 和复用 MF 一样简单；agent 可以生成"MF_BridgeTriplanar" 这类函数，master material 里就是一个普通 MaterialFunctionCall |
+| M2.5-6 | `inline_snippet_as_material_function(snippet_name, mf_path)` — 把一个 `.ush` 片段封装成 `UMaterialFunction`（输入 pin / 输出 pin / 内部一个 Custom 节点） | 中 | 让图里复用 snippet 和复用 MF 一样简单；agent 可以生成"MF_TetherTriplanar" 这类函数，master material 里就是一个普通 MaterialFunctionCall |
 
 **首发 snippet 建议**（M2.5-1 配套落地）：
 
-- `BridgeBlendAngleCorrectedNormals(DetailN, BaseN, Strength)` — 细节法线混合，8 节点 → 1 行
-- `BridgeTriplanarSample(Tex, SamplerState, WorldPos, WorldNormal, Scale, Sharpness)` — 三向投影贴图，~50 节点 → 20 条指令
-- `BridgePerlin3D(Pos, Octaves, Persistence)` / `BridgeVoronoi(Pos, Cells)` — 常用程序化噪声
-- `BridgeSobelEdge(SceneTex, UV, TexelSize, Threshold)` — 后处理 Sobel 边缘（素描 / 描边 PP 复用）
-- `BridgeACESTonemap(Color)` — 电影级 tone curve
-- `BridgeUnpackORM(Tex)` / `BridgePackORM(Occlusion, Roughness, Metallic)` — ORM 打包 / 解包标准化
-- `BridgeDitherLODTransition(Opacity, PixelPos)` — LOD 交叉淡入，植被 / 角色换 LOD 常用
-- `BridgeDepthFade(SceneDepth, PixelDepth, FadeDist)` — 粒子软化
+- `TetherBlendAngleCorrectedNormals(DetailN, BaseN, Strength)` — 细节法线混合，8 节点 → 1 行
+- `TetherTriplanarSample(Tex, SamplerState, WorldPos, WorldNormal, Scale, Sharpness)` — 三向投影贴图，~50 节点 → 20 条指令
+- `TetherPerlin3D(Pos, Octaves, Persistence)` / `TetherVoronoi(Pos, Cells)` — 常用程序化噪声
+- `TetherSobelEdge(SceneTex, UV, TexelSize, Threshold)` — 后处理 Sobel 边缘（素描 / 描边 PP 复用）
+- `TetherACESTonemap(Color)` — 电影级 tone curve
+- `TetherUnpackORM(Tex)` / `TetherPackORM(Occlusion, Roughness, Metallic)` — ORM 打包 / 解包标准化
+- `TetherDitherLODTransition(Opacity, PixelPos)` — LOD 交叉淡入，植被 / 角色换 LOD 常用
+- `TetherDepthFade(SceneDepth, PixelDepth, FadeDist)` — 粒子软化
 
 **M3 模板按需引用**（具体哪些用 HLSL 下表）：
 
 | 模板 | 图实现的部分 | HLSL snippet 的部分 |
 |---|---|---|
-| M3-2 角色铠甲 | 参数 / 输出路由 / 静态开关 | `BridgeBlendAngleCorrectedNormals`（DetailNormal）+ Anisotropy 切线旋转 |
-| M3-3 环境道具 | 顶点色混合 / 参数 | `BridgeTriplanarSample`（可选，当启用 triplanar 开关） |
-| M3-4 植被 | WPO / Subsurface / 参数 | `BridgeDitherLODTransition` |
-| M3-5 Hero 武器 | 双 UV / Curve Atlas | `BridgeBlendAngleCorrectedNormals` + 可选 `BridgePOMRayMarch` |
-| M3-9 VFX | Depth Fade / Particle 参数 | `BridgeDepthFade` |
-| M4-2/3/4 后处理 | Blendable wiring / 参数 | `BridgeSobelEdge` / 半调 / 交叉线 HLSL 片段 |
+| M3-2 角色铠甲 | 参数 / 输出路由 / 静态开关 | `TetherBlendAngleCorrectedNormals`（DetailNormal）+ Anisotropy 切线旋转 |
+| M3-3 环境道具 | 顶点色混合 / 参数 | `TetherTriplanarSample`（可选，当启用 triplanar 开关） |
+| M3-4 植被 | WPO / Subsurface / 参数 | `TetherDitherLODTransition` |
+| M3-5 Hero 武器 | 双 UV / Curve Atlas | `TetherBlendAngleCorrectedNormals` + 可选 `TetherPOMRayMarch` |
+| M3-9 VFX | Depth Fade / Particle 参数 | `TetherDepthFade` |
+| M4-2/3/4 后处理 | Blendable wiring / 参数 | `TetherSobelEdge` / 半调 / 交叉线 HLSL 片段 |
 
 验收：任一 M3 模板切换到"HLSL 增强版"后，指令数不升 + sampler 数不升 + 编译无错 + 预览图像素差 < ε。
 
@@ -276,7 +276,7 @@
 2. **编译阻塞**：M2-11 默认阻塞到编译完（可 `async=True`）；agent 收到返回值时统计数可信。
 3. **Saved/ 产物隔离**：所有 preview PNG 去 `<Saved>/MaterialPreviews/`；Lint 报告去 `<Saved>/MaterialReports/`；不污染 Content/ 目录。
 4. **跨 session 可重跑**：模板脚本幂等（目标路径存在则覆盖同名 expression / 重连；不生成二次副本）。
-5. **签名优先于实现**：所有函数先定签名 + USTRUCT，进 `bridge-material-api.md`，再写实现。M2-5 的 output/input **名字而非 index** 是硬约定。
+5. **签名优先于实现**：所有函数先定签名 + USTRUCT，进 `tether-material-api.md`，再写实现。M2-5 的 output/input **名字而非 index** 是硬约定。
 6. **安全分级**：创建 / 改 MI 参数 = 轻量；修改已有 Master material / 删 expression = 中；跑 `auto_fix_material` 批量多个 material = 重，建议先 dry-run + 用户确认。
 
 ---
@@ -301,7 +301,7 @@
 
 ## Tier-B / 推迟项
 
-- **Shader debugger 级别的逐像素着色**：RenderDoc 能做，bridge 范围外。
+- **Shader debugger 级别的逐像素着色**：RenderDoc 能做，tether 范围外。
 - **Material Graph 节点级拖拽录像**：没有意义，已有 snapshot/diff。
 - **自动从参考图生成材质**（"给一张图让我还原成 PBR"）：需要外部视觉模型 + 贴图合成管线，属于 tier B，不进本路线图。
 - **Substance / Designer 联动**：跨进程 DCC 集成，对齐 `agent-capability-gaps.md` Tier-B。
@@ -316,7 +316,7 @@
 - **A2-#6**（Niagara 系统编辑）会复用 M2 的 expression 原语（Niagara module 底层也是 Material-like 图）— 做完 M2 再开 Niagara 路线图成本降一半
 - **A6-#23**（Golden-image 回归）直接复用 M1-6 的预览 pipeline + M6-6 的 snapshot/compare
 - **A1-#2**（GBuffer 通道截图）已交付，M1-7（shader complexity view）是同一套 `ASceneCapture2D` + ViewFamily 参数扩展
-- **M2.5 HLSL 基建**可回流到 Niagara module / Control Rig 等其它走 `UMaterialExpression*` 或类似图的子系统 —— `BridgeSnippets.ush` 是跨子系统共享的代码库，不是 Material 专属
+- **M2.5 HLSL 基建**可回流到 Niagara module / Control Rig 等其它走 `UMaterialExpression*` 或类似图的子系统 —— `TetherSnippets.ush` 是跨子系统共享的代码库，不是 Material 专属
 
 ---
 
@@ -324,7 +324,7 @@
 
 剩余工作按"每个 bullet = 一次 commit 大小的垂直切片"列出，从最容易上手的往后排，互不依赖。pick 一个开始即可，不必按顺序：
 
-1. ✅ ~~**M4-2 PP_Sketch**~~ (已交付，commit 4ed70e1 — BridgeSobelEdge + BridgeCrossHatch snippets + pp_sketch.py)
+1. ✅ ~~**M4-2 PP_Sketch**~~ (已交付，commit 4ed70e1 — TetherSobelEdge + TetherCrossHatch snippets + pp_sketch.py)
 2. ✅ ~~**M3-9 VFX 基础模板**~~ (已交付，commit 6bb7e9e — vfx_unlit_additive.py + vfx_translucent_soft.py)
 3. ✅ ~~**M5-10 texture compression 合规检查**~~ (已交付，commit b3bea07 — 覆盖 Color/Normal/Masks/Grayscale/LinearColor 五种 sampler 的 compression + sRGB 匹配，engine placeholder 降级为 info)
 4. ✅ ~~**M5-9 MI chain depth**~~ (已交付，commit 554baea — chain depth > 3 warning + StaticSwitch override 数量分级)
@@ -334,20 +334,20 @@
 
 **M3 + M4 + M5 规则与 auto_fix 代码全部落地并 smoke-tested。所有原定 polish 项 + bonus 也全交付。**
 
-### 下一批候选工作（从 2026-04-25 Matrix-upgrade showcase 踩坑暴露的 bridge gap）
+### 下一批候选工作（从 2026-04-25 Matrix-upgrade showcase 踩坑暴露的 tether gap）
 
-11. ✅ ~~**`WaitForMaterialShaderCompile` 架构级修复**~~ (已交付 2026-04-25) — 新 C++ UFUNCTION `UUnrealBridgeMaterialLibrary::GetMaterialShaderCompileStatus(path, FL, QL) → FBridgeShaderCompileStatus` 做**廉价一次性 probe** (检查 `MatInterface->IsCompiling() == false && FMaterialResource::GetGameThreadShaderMap() != nullptr`). 配套新 CLI 子命令 `bridge.py wait-compile <path>` 在 **client 端** 循环调用此 probe，每次 poll 都是独立 exec，**polls 之间 GT 完全空闲可跑 tick**，避开了 GT-waits-GT 自锁. 默认 FL = `GMaxRHIFeatureLevel` (UE 5.7 = SM6). **核心协议**: exec-A 改 permutation → `bridge.py wait-compile <mi>` 阻塞到 ready → exec-C render. 使用 `MSYS_NO_PATHCONV=1` 前缀给 Windows Git Bash 用. Smoke-test 验证 4 次 flip + poll + capture 全部 GT 健康 (3.5 ms ping) 无死锁.
+11. ✅ ~~**`WaitForMaterialShaderCompile` 架构级修复**~~ (已交付 2026-04-25) — 新 C++ UFUNCTION `UTetherMaterialLibrary::GetMaterialShaderCompileStatus(path, FL, QL) → FTetherShaderCompileStatus` 做**廉价一次性 probe** (检查 `MatInterface->IsCompiling() == false && FMaterialResource::GetGameThreadShaderMap() != nullptr`). 配套新 CLI 子命令 `tether.py wait-compile <path>` 在 **client 端** 循环调用此 probe，每次 poll 都是独立 exec，**polls 之间 GT 完全空闲可跑 tick**，避开了 GT-waits-GT 自锁. 默认 FL = `GMaxRHIFeatureLevel` (UE 5.7 = SM6). **核心协议**: exec-A 改 permutation → `tether.py wait-compile <mi>` 阻塞到 ready → exec-C render. 使用 `MSYS_NO_PATHCONV=1` 前缀给 Windows Git Bash 用. Smoke-test 验证 4 次 flip + poll + capture 全部 GT 健康 (3.5 ms ping) 无死锁.
 12. **`SetActorMesh` 扩展支持 `SkeletalMesh`** — 当前 `SetActorMesh` 硬 Cast 到 `UStaticMeshComponent`，只能处理 static mesh. 要给 `SkeletalMeshActor` 换 mesh，得 fall back 到原生 UE Python API 手拿 `skeletal_mesh_component.set_skeletal_mesh_asset(...)`. 补 C++: `if (auto* SMC = Actor->FindComponentByClass<USkeletalMeshComponent>()) SMC->SetSkeletalMeshAsset(...)` 分支. ~20 行.
-13. **Matrix-playbook 的 M_Cloth_Hero benchmark 模板** — 完整落地 Matrix 风格 800+ inst / 100+ static switch / A/B 层 mirror / VT 双轨 / pattern Texture2DArray 的 master. 依赖 #11 (多 permutation 测试需要 wait helper 才不会每次都踩 4 连 hang). 工作量估计 1500-3000 行 Python + 需要 `TextureSampleParameter2DArray` 的 bridge 支持 (见 playbook memory).
-14. ✅ ~~**Ellie 背包 showcase 渲染**~~ (已交付 2026-04-25 在 #11 落地后) — 4 个角度 PNG 渲染在 `<project>/Saved/EllieBackpackPreviews/v2_{front,threeq,side,back}.png`. Body 的 pale-canvas texture + Charlie sheen rim-light 在 grazing 边缘清晰可见 (straps 外缘). 3 个 MI 绑 5 material slot 全部生效, MI 参数持久化在 `/Game/BridgeTemplates/_EllieShowcase/*`.
+13. **Matrix-playbook 的 M_Cloth_Hero benchmark 模板** — 完整落地 Matrix 风格 800+ inst / 100+ static switch / A/B 层 mirror / VT 双轨 / pattern Texture2DArray 的 master. 依赖 #11 (多 permutation 测试需要 wait helper 才不会每次都踩 4 连 hang). 工作量估计 1500-3000 行 Python + 需要 `TextureSampleParameter2DArray` 的 tether 支持 (见 playbook memory).
+14. ✅ ~~**Ellie 背包 showcase 渲染**~~ (已交付 2026-04-25 在 #11 落地后) — 4 个角度 PNG 渲染在 `<project>/Saved/EllieBackpackPreviews/v2_{front,threeq,side,back}.png`. Body 的 pale-canvas texture + Charlie sheen rim-light 在 grazing 边缘清晰可见 (straps 外缘). 3 个 MI 绑 5 material slot 全部生效, MI 参数持久化在 `/Game/TetherTemplates/_EllieShowcase/*`.
 
 
 
-8. ✅ ~~**auto_fix smoke-test**~~ (已完成 2026-04-24，commit 5537560 — 5 条合成 material 全过：M_Test_StaticSwitch (Lerp→StaticSwitchParameter 转换) + M_Test_Custom_{Add,Saturate,OneMinus,Lerp} (Custom→native 替换). 合成 material 保留在 `/Game/BridgeTemplates/_AutoFixSmokeTest/`, test scripts 在 `temp/test_m5_autofix_step{1,2}_*.py`, 可复用为 regression fixtures)
+8. ✅ ~~**auto_fix smoke-test**~~ (已完成 2026-04-24，commit 5537560 — 5 条合成 material 全过：M_Test_StaticSwitch (Lerp→StaticSwitchParameter 转换) + M_Test_Custom_{Add,Saturate,OneMinus,Lerp} (Custom→native 替换). 合成 material 保留在 `/Game/TetherTemplates/_AutoFixSmokeTest/`, test scripts 在 `temp/test_m5_autofix_step{1,2}_*.py`, 可复用为 regression fixtures)
 9. ✅ ~~**POM for Weapon_Hero**~~ (已交付 2026-04-24 — 调用引擎的 `/Engine/Functions/Engine_MaterialFunctions01/Texturing/ParallaxOcclusionMapping` MF，经 `UsePOM` 静态开关在 UV0 的 raw-vs-POM-offset 路径间切换. 完全避开 M5-12——heightmap 采样在 engine MF 内部发生，不是 Custom HLSL. 加了 5 个 MI 参数 (`HeightmapTex`, `POMHeightRatio`, `POMMinSteps`, `POMMaxSteps`, `POMReferencePlane`). 实测：85 expressions / 7 samplers / compile clean / 0 warnings)
 
-   **Curve Atlas pulse 已调研后 deferred**：`UCurveLinearColor.FloatCurves[4]` (TArray<FRichCurve>) 在 UE 5.7 不是 UPROPERTY，Python 端没有 add_key API，helper 创建的默认 curve 会 evaluate 为 0 → pulse 变常量 0，比 sine 现状更差. 要交付需要新写一条 bridge C++ UFUNCTION 暴露 `FRichCurve::AddKey`，成本超过收益（sine 覆盖 90% 用例）.
-10. ✅ ~~**M3-7 升级到 MaterialAttributeLayers**~~ (已交付 2026-04-24 — `layered.py` 整包重写，用 `UMaterialFunctionMaterialLayerFactory` / `UMaterialFunctionMaterialLayerBlendFactory` 建 3 × ML + 2 × MLB，master 换成 `M_Layered_Stack` with MaterialAttributeLayers 节点. **关键：新增 C++ UFUNCTION `UUnrealBridgeMaterialLibrary::SetMaterialAttributeLayers`**，走 `FMaterialLayersFunctions::AddDefaultBackgroundLayer + AppendBlendedLayer` 官方 API 正确初始化 LayerGuids / LayerLinkStates / EditorOnly 子结构. 直接 Python 赋值 `default_layers` 在 5.7 会崩（踩过一次，memory 已存）. `ensure_layer_stack_assets()` 作为前置 exec 单独跑).
+   **Curve Atlas pulse 已调研后 deferred**：`UCurveLinearColor.FloatCurves[4]` (TArray<FRichCurve>) 在 UE 5.7 不是 UPROPERTY，Python 端没有 add_key API，helper 创建的默认 curve 会 evaluate 为 0 → pulse 变常量 0，比 sine 现状更差. 要交付需要新写一条 tether C++ UFUNCTION 暴露 `FRichCurve::AddKey`，成本超过收益（sine 覆盖 90% 用例）.
+10. ✅ ~~**M3-7 升级到 MaterialAttributeLayers**~~ (已交付 2026-04-24 — `layered.py` 整包重写，用 `UMaterialFunctionMaterialLayerFactory` / `UMaterialFunctionMaterialLayerBlendFactory` 建 3 × ML + 2 × MLB，master 换成 `M_Layered_Stack` with MaterialAttributeLayers 节点. **关键：新增 C++ UFUNCTION `UTetherMaterialLibrary::SetMaterialAttributeLayers`**，走 `FMaterialLayersFunctions::AddDefaultBackgroundLayer + AppendBlendedLayer` 官方 API 正确初始化 LayerGuids / LayerLinkStates / EditorOnly 子结构. 直接 Python 赋值 `default_layers` 在 5.7 会崩（踩过一次，memory 已存）. `ensure_layer_stack_assets()` 作为前置 exec 单独跑).
 
     **新旧模板共存**：老的 `M_Layered_Base` + `MF_Layer_{Metal,Fabric,Dirt}` + `MI_Layered_Base_Test` 还在磁盘上（未自动删——可能有 MI 引用）；要清理手动 `EditorAssetLibrary.delete_asset`.
 
@@ -357,7 +357,7 @@
 
 - **Fresnel 节点**：pin 叫 `ExponentIn`（连线用），fallback scalar **属性**叫 `Exponent`（set_prop 用）。混用会报 "could not set ExponentIn"。
 - **If 节点**：branch 的 pin 名叫 `A > B` / `A == B` / `A < B`（空格+符号形式，不是 `AGreaterThanB`）——`GetShortenPinName` 在引擎侧对等转换。实际写 step 函数时改走 `saturate((a-b)*1000)` 更简单。
-- **SceneTexture `Coordinates`**：写时必须叫 `UVs`（短名）。现在 bridge 双向兼容，但 get_material_graph 返回的也已经是 `UVs`。
+- **SceneTexture `Coordinates`**：写时必须叫 `UVs`（短名）。现在 tether 双向兼容，但 get_material_graph 返回的也已经是 `UVs`。
 - **SceneTexture 的 `Color` 输出是 float4**：接到 float3 的后续数学会报 "Arithmetic between float4 and float3 is undefined"。加一个 ComponentMask(R=G=B=true, A=false) 变 float3 再接。
 - **ESceneTextureId**：ImportText 要 `PPI_` 前缀，如 `PPI_PostProcessInput0` / `PPI_SceneDepth`，不是 bare name。
 - **VectorParameter 没有 `RGB` 输出**：outputs 是 `""` / `R` / `G` / `B` / `A`。写 Lerp 的 `B` 输入要用 `""`（float4）让下游隐式截断，或手动 ComponentMask。
@@ -366,23 +366,23 @@
 - **TextureSampleParameter2D 的 default texture 不是真正的 "运行时纹理"**（MI 可覆盖）——M5-4 重复纹理查找规则故意只扫 plain `UMaterialExpressionTextureSample`，不扫 parameter 版本。
 - **UE Python `str(unreal.Guid)` 返回 `<Struct 'Guid' (0x...) {}>`**，对 `FGuid::Parse` 无效。用 `.to_string()`（或我封装的 `_common.guid_to_str(g)`）拿 32-hex 形式。
 - **UE Python 对 bool USTRUCT 字段去掉 `b` 前缀**：`bool bSuccess` → Python 里是 `.success`，不是 `.b_success`。
-- **UE 5.7 `EBlendableLocation` 没有 `BL_SceneColorBeforeTonemapping`**（被删了）；要 pre-tonemap 用 `BL_SceneColorBeforeBloom`。bridge 的 `ParseBlendableLocation` 把字符串 `"BeforeTonemapping"` 作为别名映射到它。
+- **UE 5.7 `EBlendableLocation` 没有 `BL_SceneColorBeforeTonemapping`**（被删了）；要 pre-tonemap 用 `BL_SceneColorBeforeBloom`。tether 的 `ParseBlendableLocation` 把字符串 `"BeforeTonemapping"` 作为别名映射到它。
 - **TextureObjectParameter 继承自 UMaterialExpressionTextureSample**（经 TextureSampleParameter），所以 M5-5 / M5-10 把它当成 "一个采样" 纳入统计。用 TextureObjectParameter 当共享 texture 源时，必须跟下游的 TextureSample 同步 `SamplerSource`（默认 `SSM_FromTextureAsset`）否则 M5-5 会 flag "mixing sampler sources"。参见 pp_color_grade_lut.py 的 LUT_Texture 节点。
-- **`UMaterialExpression::MaterialExpressionGuid` 不是 UPROPERTY**，所以 Python 侧用 `MEL.create_material_expression(...)` 或 `set_editor_property('material_expression_guid', ...)` 都读不出来. 要拿新建节点的 GUID，过一遍 `bridge.get_material_graph(master_path)` 用 class 名 + (x, y) 坐标匹配是最可靠的 workaround — layered.py 就是这么做的.
+- **`UMaterialExpression::MaterialExpressionGuid` 不是 UPROPERTY**，所以 Python 侧用 `MEL.create_material_expression(...)` 或 `set_editor_property('material_expression_guid', ...)` 都读不出来. 要拿新建节点的 GUID，过一遍 `tether.get_material_graph(master_path)` 用 class 名 + (x, y) 坐标匹配是最可靠的 workaround — layered.py 就是这么做的.
 - **`FExpressionInput` 在 UE 5.7 里没有 `OutputName` 字段**（输出名存在源节点的 `FExpressionOutput` 列表上，不在 input 端）. 如果你要鑫鑫改向 RedirectUsageToNewSource 之类的 helper，只设 `Input->Expression` + `Input->OutputIndex` 即可，别写 `Input->OutputName = ...` 否则编译报 C2039 "OutputName: not a member".
-- **`UMaterialFunction` 的图不是 UMaterial 的图** — bridge 的 `ApplyMaterialGraphOps` / `AddMaterialExpression` / `ConnectMaterialExpressions` 都硬 Cast 成 `UMaterial*`，不能直接编辑 MF 图. 要在 MF 里加节点，用 UE Python `MaterialEditingLibrary.create_material_expression_in_function` / `connect_material_expressions`（不带路径参数那版）/ `update_material_function` 一路手动调. layered.py 的 `_build_layer_mf` 是参考例.
+- **`UMaterialFunction` 的图不是 UMaterial 的图** — tether 的 `ApplyMaterialGraphOps` / `AddMaterialExpression` / `ConnectMaterialExpressions` 都硬 Cast 成 `UMaterial*`，不能直接编辑 MF 图. 要在 MF 里加节点，用 UE Python `MaterialEditingLibrary.create_material_expression_in_function` / `connect_material_expressions`（不带路径参数那版）/ `update_material_function` 一路手动调. layered.py 的 `_build_layer_mf` 是参考例.
 - **Texture2DFactoryNew + save_asset 同 exec = GT 死锁** (2026-04-24, M3-10 incident)：`IAssetTools::CreateAsset(Texture2DFactoryNew)` 后紧跟 `save_asset` 走 asset-reference-completing 模态；如果这再跟 master material 的 apply_ops + compile + save + MI create 打包进一个 exec，GT 被卡到完全不响应，只能 taskkill. **模式**：template 需要自建系统纹理时，`ensure_default_*_texture()` **必须是独立 exec**；template 的 `build()` 不再内嵌 factory 路径，而是 `does_asset_exist` 检查 + 缺失就 raise（带清晰的前置 exec 提示）. `fabric_pbr.py` 的 `build()` 就是这么做的.
-- **Python 直接赋 `MaterialExpressionMaterialAttributeLayers.DefaultLayers` 在 5.7 会崩编辑器** (2026-04-24, item 10 incident)：MAL 节点 ctor 会调 `FMaterialLayersFunctions::AddDefaultBackgroundLayer()` 正确初始化 `BackgroundGuid` + `EditorOnly.{LayerStates, LayerNames, LayerGuids, LayerLinkStates, RestrictToLayerRelatives}`. Python 端用 `set_editor_property("default_layers", unreal.MaterialLayersFunctions())` 覆盖这个默认值，构造的空 struct 除了 `layers`/`blends` 所有 parallel array 都是空 → 下游 `RebuildLayerGraph` / `GetID()` 里 parallel-index 访问越界 → 编辑器直接挂. **正确方式**：通过 bridge C++ UFUNCTION `UUnrealBridgeMaterialLibrary::SetMaterialAttributeLayers` 走 `AddDefaultBackgroundLayer + AppendBlendedLayer` 的官方 authoring 路径. 参见 `layered.py` + `UnrealBridgeMaterialLibrary.cpp` 末尾的实现.
+- **Python 直接赋 `MaterialExpressionMaterialAttributeLayers.DefaultLayers` 在 5.7 会崩编辑器** (2026-04-24, item 10 incident)：MAL 节点 ctor 会调 `FMaterialLayersFunctions::AddDefaultBackgroundLayer()` 正确初始化 `BackgroundGuid` + `EditorOnly.{LayerStates, LayerNames, LayerGuids, LayerLinkStates, RestrictToLayerRelatives}`. Python 端用 `set_editor_property("default_layers", unreal.MaterialLayersFunctions())` 覆盖这个默认值，构造的空 struct 除了 `layers`/`blends` 所有 parallel array 都是空 → 下游 `RebuildLayerGraph` / `GetID()` 里 parallel-index 访问越界 → 编辑器直接挂. **正确方式**：通过 tether C++ UFUNCTION `UTetherMaterialLibrary::SetMaterialAttributeLayers` 走 `AddDefaultBackgroundLayer + AppendBlendedLayer` 的官方 authoring 路径. 参见 `layered.py` + `TetherMaterialLibrary.cpp` 末尾的实现.
 
 ### 回归测试的最小集合
 
 下次上手后验证现有代码还能跑，最小命令组（假设编辑器已启动且加载项目）：
 
 ```bash
-python .claude/skills/unreal-bridge/scripts/bridge.py ping
+python .claude/skills/tether/scripts/tether.py ping
 
 # Exec 1 — 必跑，fabric_pbr 依赖：创建系统纹理（独立 exec，不能跟 build 打包）
-python .claude/skills/unreal-bridge/scripts/bridge.py exec "
+python .claude/skills/tether/scripts/tether.py exec "
 import material_templates._common as C
 print('masks:', C.ensure_default_masks_texture())
 print('linear:', C.ensure_default_linear_texture())
@@ -390,7 +390,7 @@ print('linear:', C.ensure_default_linear_texture())
 
 # Exec 2+ — 回归跑按批拆分（一把全跑会在 _common.save_master + factory path 混杂时触发
 # asset-reference-completing 模态死锁，2026-04-24 踩过；现在分批一次 3-4 个 template）.
-python .claude/skills/unreal-bridge/scripts/bridge.py --timeout 300 exec "
+python .claude/skills/tether/scripts/tether.py --timeout 300 exec "
 import importlib
 import material_templates._common as c
 import material_templates.character_armor as ca
@@ -399,14 +399,14 @@ import material_templates.environment_prop as ep
 import material_templates.foliage_master as fm
 for m in (c, ca, cp, ep, fm): importlib.reload(m)
 import unreal
-L = unreal.UnrealBridgeMaterialLibrary
+L = unreal.TetherMaterialLibrary
 for b in (ca, cp, ep, fm):
     r = b.build(rebuild=True); ar = L.analyze_material(r['master_path'], 0, 0)
     real = [f for f in ar.findings if str(f.severity).lower() not in ('severity.info','info')]
     print(f\"{r['master_path']}: exprs={r.get('num_expressions','?')} warnings={len(real)}\")
 "
 
-python .claude/skills/unreal-bridge/scripts/bridge.py --timeout 300 exec "
+python .claude/skills/tether/scripts/tether.py --timeout 300 exec "
 import importlib
 import material_templates._common as c
 import material_templates.glass_translucent as gl
@@ -416,7 +416,7 @@ import material_templates.vfx_unlit_additive as va
 import material_templates.vfx_translucent_soft as vt
 for m in (c, gl, ui, wh, va, vt): importlib.reload(m)
 import unreal
-L = unreal.UnrealBridgeMaterialLibrary
+L = unreal.TetherMaterialLibrary
 for b in (gl, ui, wh, va, vt):
     r = b.build(rebuild=True); ar = L.analyze_material(r['master_path'], 0, 0)
     real = [f for f in ar.findings if str(f.severity).lower() not in ('severity.info','info')]
@@ -424,7 +424,7 @@ for b in (gl, ui, wh, va, vt):
 "
 
 # M_Layered_Stack — needs the 5 ML/MLB MFs preflight in its own exec (factory-chained asset save risks the same modal deadlock as the texture helpers).
-python .claude/skills/unreal-bridge/scripts/bridge.py --timeout 180 exec "
+python .claude/skills/tether/scripts/tether.py --timeout 180 exec "
 import importlib
 import material_templates._common as c
 import material_templates.layered as ly
@@ -432,13 +432,13 @@ for m in (c, ly): importlib.reload(m)
 ly.ensure_layer_stack_assets(rebuild=True)
 print('layer-stack MFs ready')
 "
-python .claude/skills/unreal-bridge/scripts/bridge.py --timeout 180 exec "
+python .claude/skills/tether/scripts/tether.py --timeout 180 exec "
 import importlib
 import material_templates._common as c
 import material_templates.layered as ly
 for m in (c, ly): importlib.reload(m)
 import unreal
-L = unreal.UnrealBridgeMaterialLibrary
+L = unreal.TetherMaterialLibrary
 r = ly.build(rebuild=True)
 ar = L.analyze_material(r['master_path'], 0, 0)
 real = [f for f in ar.findings if str(f.severity).lower() not in ('severity.info','info')]
@@ -446,13 +446,13 @@ print(f\"{r['master_path']}: exprs={r.get('num_expressions','?')} warnings={len(
 "
 
 # M3-10 fabric_pbr — 纹理已在 Exec 1 建好
-python .claude/skills/unreal-bridge/scripts/bridge.py --timeout 180 exec "
+python .claude/skills/tether/scripts/tether.py --timeout 180 exec "
 import importlib
 import material_templates._common as c
 import material_templates.fabric_pbr as fp
 for m in (c, fp): importlib.reload(m)
 import unreal
-L = unreal.UnrealBridgeMaterialLibrary
+L = unreal.TetherMaterialLibrary
 r = fp.build(rebuild=True, mi_path=None)
 ar = L.analyze_material(r['master_path'], 0, 0)
 real = [f for f in ar.findings if str(f.severity).lower() not in ('severity.info','info')]
@@ -460,7 +460,7 @@ print(f\"{r['master_path']}: exprs={r.get('num_expressions','?')} warnings={len(
 "
 
 # PP 模板（apply_weight=0 不挂到 PPV，纯烘焙）
-python .claude/skills/unreal-bridge/scripts/bridge.py --timeout 300 exec "
+python .claude/skills/tether/scripts/tether.py --timeout 300 exec "
 import importlib
 import material_templates._common as c
 import material_templates.pp_posterize as pp
@@ -471,7 +471,7 @@ import material_templates.pp_color_grade_lut as cg
 import material_templates.pp_film_grain as fg
 for m in (c, pp, ph, po, ps, cg, fg): importlib.reload(m)
 import unreal
-L = unreal.UnrealBridgeMaterialLibrary
+L = unreal.TetherMaterialLibrary
 for b in (pp, ph, po, ps, cg, fg):
     r = b.build(rebuild=True, apply_weight=0); ar = L.analyze_material(r['master_path'], 0, 0)
     real = [f for f in ar.findings if str(f.severity).lower() not in ('severity.info','info')]

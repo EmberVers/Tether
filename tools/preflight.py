@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Preflight environment checker for UnrealBridge build / run.
+"""Preflight environment checker for Tether build / run.
 
 Scans the local machine for the toolchain + resources needed to compile and
 launch a UE editor with this plugin. Intended as a one-shot diagnostic before
@@ -19,7 +19,7 @@ Checks:
     4. Free disk space          (>=20 GB on the repo drive)
     5. GPU + VRAM               (DX12-capable, >=4 GB recommended)
     6. UE engine path resolvable (UNREAL_EDITOR_EXE or UE_ROOT env var)
-    7. Bridge plugin file present (Plugin/UnrealBridge/UnrealBridge.uplugin)
+    7. Tether plugin file present (Plugin/Tether/Tether.uplugin)
 """
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ from pathlib import Path
 from typing import Optional
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-UPLUGIN_PATH = REPO_ROOT / "Plugin" / "UnrealBridge" / "UnrealBridge.uplugin"
+UPLUGIN_PATH = REPO_ROOT / "Plugin" / "Tether" / "Tether.uplugin"
 
 # Windows consoles in non-en locales (e.g. cp936) can't encode some symbols.
 if hasattr(sys.stdout, "reconfigure"):
@@ -298,9 +298,9 @@ def check_ue_engine_path() -> CheckResult:
 
 def check_uplugin() -> CheckResult:
     if UPLUGIN_PATH.exists():
-        return CheckResult("Bridge plugin", "PASS",
+        return CheckResult("Tether plugin", "PASS",
                            str(UPLUGIN_PATH.relative_to(REPO_ROOT)))
-    return CheckResult("Bridge plugin", "FAIL",
+    return CheckResult("Tether plugin", "FAIL",
                        f"missing: {UPLUGIN_PATH}")
 
 
@@ -325,7 +325,7 @@ def run_all() -> list[CheckResult]:
 
 
 def render_text(results: list[CheckResult]) -> str:
-    lines = ["UnrealBridge preflight\n"]
+    lines = ["Tether preflight\n"]
     width = max(len(r.name) for r in results)
     for r in results:
         lines.append(f"  [{status_icon(r.status)}] {r.name.ljust(width)}  {r.detail}")
@@ -339,7 +339,7 @@ def render_text(results: list[CheckResult]) -> str:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Check that the local environment is ready to build/run UnrealBridge.")
+    ap = argparse.ArgumentParser(description="Check that the local environment is ready to build/run Tether.")
     ap.add_argument("--json", action="store_true", help="Emit JSON instead of text")
     ap.add_argument("--strict", action="store_true",
                     help="Treat WARN as FAIL for exit-code purposes")

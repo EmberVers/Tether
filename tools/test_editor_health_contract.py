@@ -8,17 +8,17 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PRIVATE = ROOT / "Plugin/UnrealBridge/Source/UnrealBridge/Private"
-SERVER = PRIVATE / "UnrealBridgeServer.cpp"
-PROTOCOL = PRIVATE / "UnrealBridgeProtocol.h"
-DISPATCHER = PRIVATE / "UnrealBridgeExactRequestDispatcher.cpp"
+PRIVATE = ROOT / "Plugin/Tether/Source/Tether/Private"
+SERVER = PRIVATE / "TetherServer.cpp"
+PROTOCOL = PRIVATE / "TetherProtocol.h"
+DISPATCHER = PRIVATE / "TetherExactRequestDispatcher.cpp"
 DISCOVERY_CLIENT = (
-    ROOT / ".claude/skills/unreal-bridge/scripts/bridge_discovery.py"
+    ROOT / ".claude/skills/tether/scripts/tether_discovery.py"
 )
 TESTS = (
     ROOT
-    / "Plugin/UnrealBridge/Source/UnrealBridge/Private/Tests"
-    / "UnrealBridgeEditorHealthTests.cpp"
+    / "Plugin/Tether/Source/Tether/Private/Tests"
+    / "TetherEditorHealthTests.cpp"
 )
 
 
@@ -33,8 +33,8 @@ class EditorHealthContractTests(unittest.TestCase):
 
     def test_health_branch_reads_cache_without_fresh_dispatch_or_slate(self):
         match = re.search(
-            r"else if \(Command == EUnrealBridgeExactCommand::EditorStatus\)(.*?)"
-            r"else if \(Command == EUnrealBridgeExactCommand::DebugResume\)",
+            r"else if \(Command == ETetherExactCommand::EditorStatus\)(.*?)"
+            r"else if \(Command == ETetherExactCommand::DebugResume\)",
             self.server,
             re.DOTALL,
         )
@@ -48,7 +48,7 @@ class EditorHealthContractTests(unittest.TestCase):
         self.assertNotIn("RunOnGameThread", branch)
         self.assertNotIn("FSlateApplication", branch)
         self.assertNotIn("CaptureSnapshot", branch)
-        dispatcher = self.server.index("FUnrealBridgeExactRequestDispatcher::TryDispatch")
+        dispatcher = self.server.index("FTetherExactRequestDispatcher::TryDispatch")
         self.assertLess(dispatcher, match.start())
 
     def test_exact_status_is_canonical_dispatched_and_discoverable(self):
@@ -60,11 +60,11 @@ class EditorHealthContractTests(unittest.TestCase):
         ]
         self.assertIn("ExactEditorStatus", capabilities)
         self.assertIn(
-            "WireCommand == UnrealBridgeProtocol::ExactEditorStatus",
+            "WireCommand == TetherProtocol::ExactEditorStatus",
             self.dispatcher,
         )
         self.assertIn(
-            "OutCommand = EUnrealBridgeExactCommand::EditorStatus",
+            "OutCommand = ETetherExactCommand::EditorStatus",
             self.dispatcher,
         )
         self.assertIn('"exact_editor_status"', self.discovery_client)
@@ -72,7 +72,7 @@ class EditorHealthContractTests(unittest.TestCase):
     def test_modal_summary_is_refreshed_by_slate_owner_delegate(self):
         self.assertIn("OnPreTick().AddRaw", self.server)
         self.assertIn("RefreshCachedSlateHealth", self.server)
-        self.assertIn("UnrealBridgeModal::CaptureSnapshot", self.server)
+        self.assertIn("TetherModal::CaptureSnapshot", self.server)
         self.assertIn("OnPreTick().Remove", self.server)
 
     def test_deterministic_tests_inject_clock(self):

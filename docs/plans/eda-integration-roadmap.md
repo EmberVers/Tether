@@ -1,6 +1,6 @@
 # EDA 集成路线图
 
-目标:让 UnrealBridge 在 UE 5.8+ 上**寄生** Epic 官方 EDA(Editor Development Assistant)框架,**白嫖**它的基础设施红利(Editor Slate 面板、MCP 协议暴露、客户端配置生成、analytics、official 背书),同时**保留** UnrealBridge 自身在 token 经济学、API 深度、AST 防幻觉、heredoc 多步合并方面的护城河。
+目标:让 Tether 在 UE 5.8+ 上**寄生** Epic 官方 EDA(Editor Development Assistant)框架,**白嫖**它的基础设施红利(Editor Slate 面板、MCP 协议暴露、客户端配置生成、analytics、official 背书),同时**保留** Tether 自身在 token 经济学、API 深度、AST 防幻觉、heredoc 多步合并方面的护城河。
 
 最后更新:2026-05-10(v0.1 — initial draft;基于 UE 5.8 主线分支 ContainerAllocationPolicies / ModelContextProtocol / ToolsetRegistry / AllToolsets / 16 个 toolset 的源码扫描 + git log `[EDA]` / `[ModelContextProtocol]` 标签的功能时间线分析)
 
@@ -16,17 +16,17 @@ EDA 框架(`<ue-source>/Engine/Plugins/Experimental/ModelContextProtocol/` + `<u
 - **`MCPClientToolset`** — MCP 客户端适配器,让 UE 反过来连外部 MCP server
 - **`AllToolsets`** — 伞形聚合插件,一键启用全部 16 个内建 toolset(AIModule / AnimationAssistant / AutomationTest / Conversation / DataflowAgent / GameFeatures / GameplayTags / GAS / LiveCoding / MCPClient / Niagara / Physics / SequencerAnimMixer / SlateInspector / StateTree / UMG / WorldConditions)
 
-EDA 与 UnrealBridge 的关系**不是替代,是互补**。两者的目标用户和能力深度不同,可以共存于同一个项目,UnrealBridge 走"在 EDA 之上的深度 power-user 通道"路线。
+EDA 与 Tether 的关系**不是替代,是互补**。两者的目标用户和能力深度不同,可以共存于同一个项目,Tether 走"在 EDA 之上的深度 power-user 通道"路线。
 
 ---
 
 ## 战略原则(核心 — 偏离即停)
 
-1. **加法不做减法** — 借 EDA 的基础设施,**绝不**为了像 EDA 而稀释 UnrealBridge 的现有差异化(1020 UFUNCTION 深度、AST preflight、kwargs wrapper、heredoc 多步、Reactive 推送、Pose Search/Chooser private 字段、Perf 8 维度、特权 UPROPERTY)。
-2. **不破坏 token 经济学** — UnrealBridge 选 RPC 不选 MCP-everything 是基于 token 经济的有意决策(详见 `feedback_unrealbridge_rpc_over_mcp` memory)。1020 个 UFUNCTION 注册成 1020 个 MCP tool descriptor 会吃掉 20-40 万 tokens 常驻 system prompt;**正确做法是在 EDA 体系里只暴露 1 个 `exec_python` tool**,把 Python 当 schema。
+1. **加法不做减法** — 借 EDA 的基础设施,**绝不**为了像 EDA 而稀释 Tether 的现有差异化(1020 UFUNCTION 深度、AST preflight、kwargs wrapper、heredoc 多步、Reactive 推送、Pose Search/Chooser private 字段、Perf 8 维度、特权 UPROPERTY)。
+2. **不破坏 token 经济学** — Tether 选 RPC 不选 MCP-everything 是基于 token 经济的有意决策(详见 `feedback_tether_rpc_over_mcp` memory)。1020 个 UFUNCTION 注册成 1020 个 MCP tool descriptor 会吃掉 20-40 万 tokens 常驻 system prompt;**正确做法是在 EDA 体系里只暴露 1 个 `exec_python` tool**,把 Python 当 schema。
 3. **5.3-5.7 老用户不能丢** — 现有 TCP+UDP discovery 通道继续维护,EDA 集成只针对 5.8+ 增量启用。
 4. **优先寄生不要自建** — EDA 已经做了的(Slate UI、MCP 协议、analytics、客户端配置生成),走它的接口蹭红利;EDA 没做的(Niagara/Sequencer/Dataflow 等领域 toolset),也优先 thin wrapper 路由进 EDA 而不是自己重写。
-5. **5.8 适配先行** — 任何 EDA 集成的前置条件是 UnrealBridge 在 5.8 上跑通(API drift 审计 + build matrix 加 5.8.0)。
+5. **5.8 适配先行** — 任何 EDA 集成的前置条件是 Tether 在 5.8 上跑通(API drift 审计 + build matrix 加 5.8.0)。
 
 ---
 
@@ -47,25 +47,25 @@ EDA 与 UnrealBridge 的关系**不是替代,是互补**。两者的目标用户
 
 ### P0 — 订阅 EDA `ToolsetRegistry`(最高优先,核心招)
 
-订阅 UE 5.8 ships 的 `ToolsetRegistry` 接口,把整个 UnrealBridge 注册成**一个**(注意:不是 21 个、不是 1020 个)叫 "UnrealBridge" 的 toolset,内部声明**单一** tool — `exec_python(script: str, timeout?: float)`。这一招打通后,EDA 的 `AIAssistant` Slate 面板自动看到 UnrealBridge,EDA 的 MCP server 自动把 UnrealBridge 暴露给所有 MCP 客户端。零额外协议工作量,蹭到 EDA 的全部基础设施。
+订阅 UE 5.8 ships 的 `ToolsetRegistry` 接口,把整个 Tether 注册成**一个**(注意:不是 21 个、不是 1020 个)叫 "Tether" 的 toolset,内部声明**单一** tool — `exec_python(script: str, timeout?: float)`。这一招打通后,EDA 的 `AIAssistant` Slate 面板自动看到 Tether,EDA 的 MCP server 自动把 Tether 暴露给所有 MCP 客户端。零额外协议工作量,蹭到 EDA 的全部基础设施。
 
 | # | 能力 | 工程量 | 备注 |
 |---|---|---|---|
-| P0-1 | 新增 `Plugin/UnrealBridge/Source/UnrealBridgeEDA/` 模块,只在 `Target.Version >= 5.8` 时编译(`*.Build.cs` 用 `EngineVersion.Major >= 5 && EngineVersion.Minor >= 8` 守门) | 小 | 模块加载阶段 `PostEngineInit`,声明软依赖 `ToolsetRegistry` plugin |
-| P0-2 | 实现 `FUnrealBridgeToolsetProvider : public IToolsetProvider`,在 `RegisterTools()` 里只注册一个 tool:`unreal_bridge.exec_python` | 小 | input schema 单参数 `script: string` + 可选 `timeout: number`;output schema `{success, output, error}` 直接转发 TCP 路径已有结构 |
-| P0-3 | tool handler 内部调用 `IPythonScriptPlugin::ExecPythonCommandEx`,**复用** `UnrealBridgeServer` 的 GameThread dispatch 路径 + `__UB_ERR__` stdout/stderr 分隔约定 | 小 | 不复制代码 — 抽出 `RunPythonOnGameThread(Script, Timeout) → FBridgeResult` 共用函数 |
-| P0-4 | tool description 内嵌入"reference 索引"提示文本(~300 tokens):`"21 UnrealBridge*Library available via unreal.UnrealBridgeXxxLibrary.fn(...). See bridge_manifest.json for full surface; see references/bridge-*-api.md for usage patterns."` | 小 | 这是给 LLM 的 hint,告诉它怎么用 — 比注册 1020 个 tool descriptor 节省 20 万 tokens |
-| P0-5 | 在 EDA `AIAssistant` 面板里手动验证 — 启用 UnrealBridge + ModelContextProtocol + AIAssistant 三个插件,看 UnrealBridge 是否出现在面板的 toolset 列表里 | 小 | 验证步骤,不是开发 |
-| P0-6 | 验证用 Claude Desktop 通过 EDA 的 MCP server 调到 UnrealBridge 的 exec_python — 跑 `unreal.UnrealBridgeLevelLibrary.get_level_summary()` 通过 | 小 | 端到端 smoke test |
+| P0-1 | 新增 `Plugin/Tether/Source/TetherEDA/` 模块,只在 `Target.Version >= 5.8` 时编译(`*.Build.cs` 用 `EngineVersion.Major >= 5 && EngineVersion.Minor >= 8` 守门) | 小 | 模块加载阶段 `PostEngineInit`,声明软依赖 `ToolsetRegistry` plugin |
+| P0-2 | 实现 `FTetherToolsetProvider : public IToolsetProvider`,在 `RegisterTools()` 里只注册一个 tool:`tether.exec_python` | 小 | input schema 单参数 `script: string` + 可选 `timeout: number`;output schema `{success, output, error}` 直接转发 TCP 路径已有结构 |
+| P0-3 | tool handler 内部调用 `IPythonScriptPlugin::ExecPythonCommandEx`,**复用** `TetherServer` 的 GameThread dispatch 路径 + `__UB_ERR__` stdout/stderr 分隔约定 | 小 | 不复制代码 — 抽出 `RunPythonOnGameThread(Script, Timeout) → FTetherResult` 共用函数 |
+| P0-4 | tool description 内嵌入"reference 索引"提示文本(~300 tokens):`"21 Tether*Library available via unreal.TetherXxxLibrary.fn(...). See tether_manifest.json for full surface; see references/tether-*-api.md for usage patterns."` | 小 | 这是给 LLM 的 hint,告诉它怎么用 — 比注册 1020 个 tool descriptor 节省 20 万 tokens |
+| P0-5 | 在 EDA `AIAssistant` 面板里手动验证 — 启用 Tether + ModelContextProtocol + AIAssistant 三个插件,看 Tether 是否出现在面板的 toolset 列表里 | 小 | 验证步骤,不是开发 |
+| P0-6 | 验证用 Claude Desktop 通过 EDA 的 MCP server 调到 Tether 的 exec_python — 跑 `unreal.TetherLevelLibrary.get_level_summary()` 通过 | 小 | 端到端 smoke test |
 | P0-7 | 默认关闭(`EnabledByDefault: false`) — 用户主动启用,不破坏现有 5.3-5.7 用户的工作流 | 小 | uplugin 配置 |
 
-**完成定义**:Claude Desktop 用户在 5.8 项目里启用 UnrealBridge + EDA 三件套后,**零额外配置**就能在面板里看到 UnrealBridge 出现并调用成功。
+**完成定义**:Claude Desktop 用户在 5.8 项目里启用 Tether + EDA 三件套后,**零额外配置**就能在面板里看到 Tether 出现并调用成功。
 
 ---
 
 ### P1a — 5.8 适配(P0/P1b 的前置)
 
-UnrealBridge 当前 build matrix 验证到 5.7.1,5.8 主线已发布(2026-Q1+ 持续 commit)。在做任何 EDA 集成前必须先跑通 5.8。
+Tether 当前 build matrix 验证到 5.7.1,5.8 主线已发布(2026-Q1+ 持续 commit)。在做任何 EDA 集成前必须先跑通 5.8。
 
 | # | 能力 | 工程量 | 备注 |
 |---|---|---|---|
@@ -81,54 +81,54 @@ UnrealBridge 当前 build matrix 验证到 5.7.1,5.8 主线已发布(2026-Q1+ �
 
 ### P1b — EDA 独有 toolset 的兼容 shim
 
-EDA 覆盖了 9 个 UnrealBridge 没有的领域(Niagara / SequencerAnimMixer / SlateInspector / GameFeatures / WorldConditions / Conversation / Dataflow / AutomationTest / PhysicsAsset / AIModule),自己重写性价比不高。直接 thin wrapper 把它们的 Python API 包成 `unreal.UnrealBridge*Library` 形态,让 UnrealBridge 用户在 5.8 上自动多出这些领域的能力。
+EDA 覆盖了 9 个 Tether 没有的领域(Niagara / SequencerAnimMixer / SlateInspector / GameFeatures / WorldConditions / Conversation / Dataflow / AutomationTest / PhysicsAsset / AIModule),自己重写性价比不高。直接 thin wrapper 把它们的 Python API 包成 `unreal.Tether*Library` 形态,让 Tether 用户在 5.8 上自动多出这些领域的能力。
 
 | # | 能力 | 工程量 | 备注 |
 |---|---|---|---|
 | P1b-1 | 调研 EDA 9 个 toolset 各自的 Python API 签名(它们是 EditorOnly 模块,Python 端可能有 `unreal.<Module>` 直接调用) | 小 | 阅读 `<ue-source>/Engine/Plugins/Experimental/Toolsets/<ToolsetName>/Source/` 下的 .h |
-| P1b-2 | `Plugin/UnrealBridge/Content/Python/unreal_bridge/eda_compat.py` — 9 个 thin wrapper class(Niagara / Sequencer / Dataflow / GameFeatures / WorldConditions / Conversation / AutomationTest / PhysicsAsset / AIModule),每个 class 转发到对应 EDA Python API | 中 | 5.8+ 才 import 加载,5.7 下提供 stub raise NotImplementedError |
+| P1b-2 | `Plugin/Tether/Content/Python/tether/eda_compat.py` — 9 个 thin wrapper class(Niagara / Sequencer / Dataflow / GameFeatures / WorldConditions / Conversation / AutomationTest / PhysicsAsset / AIModule),每个 class 转发到对应 EDA Python API | 中 | 5.8+ 才 import 加载,5.7 下提供 stub raise NotImplementedError |
 | P1b-3 | 加进 wrapper module 的 `__all__`,生成器 `tools/gen_manifest.py` 扫描时识别 EDA shim 类(可能需要白名单标记) | 小 | manifest 里这些函数标记 `eda_shim=true` 让 preflight 在 5.7 下报清楚错 |
-| P1b-4 | reference docs:`.claude/skills/unreal-bridge/references/bridge-eda-niagara.md` 等 9 篇,每篇 100-200 行,主要是 EDA toolset 文档的"翻译 + UnrealBridge 风格化" | 中 | 不重写,引用 EDA 的官方 README 段落 |
-| P1b-5 | SKILL.md 加一段 "EDA-shim 模式" 说明 — 何时走 EDA shim、何时走 UnrealBridge 原生 | 小 | 默认:UnrealBridge 原生覆盖的领域用原生(深度更好);EDA 独有的领域走 shim |
+| P1b-4 | reference docs:`.claude/skills/tether/references/tether-eda-niagara.md` 等 9 篇,每篇 100-200 行,主要是 EDA toolset 文档的"翻译 + Tether 风格化" | 中 | 不重写,引用 EDA 的官方 README 段落 |
+| P1b-5 | SKILL.md 加一段 "EDA-shim 模式" 说明 — 何时走 EDA shim、何时走 Tether 原生 | 小 | 默认:Tether 原生覆盖的领域用原生(深度更好);EDA 独有的领域走 shim |
 
-**完成定义**:5.8 上 `from unreal_bridge.eda_compat import Niagara, Sequencer, Dataflow, ...` 能调用 9 个 EDA toolset 的核心能力。
+**完成定义**:5.8 上 `from tether.eda_compat import Niagara, Sequencer, Dataflow, ...` 能调用 9 个 EDA toolset 的核心能力。
 
 ---
 
 ### P2 — MCP 客户端配置生成器
 
-EDA 在 2026-04-09 commit `[ModelContextProtocol] Add console command to generate MCP client configuration files` 加了一个 console 命令一键生成 MCP 客户端配置。UnrealBridge 抄一份。
+EDA 在 2026-04-09 commit `[ModelContextProtocol] Add console command to generate MCP client configuration files` 加了一个 console 命令一键生成 MCP 客户端配置。Tether 抄一份。
 
 | # | 能力 | 工程量 | 备注 |
 |---|---|---|---|
-| P2-1 | `bridge.py gen-config --client=claude-desktop\|cursor\|codex\|generic` 子命令,输出可直接粘贴的 JSON 配置片段 | 小 | 对 Claude Desktop:写 `claude_desktop_config.json` 的 `mcpServers` 段;Cursor 类似 |
+| P2-1 | `tether.py gen-config --client=claude-desktop\|cursor\|codex\|generic` 子命令,输出可直接粘贴的 JSON 配置片段 | 小 | 对 Claude Desktop:写 `claude_desktop_config.json` 的 `mcpServers` 段;Cursor 类似 |
 | P2-2 | 配置内容:指向当前活跃 editor 的 EDA MCP endpoint(走 P0 的注册路径),或 fallback 到独立 MCP 薄壳(P3,如果做了) | 小 | 用 UDP discovery 找当前 editor + tcp_port |
-| P2-3 | `bridge.py gen-config --output=<path>` 直接写文件;默认 stdout | 小 | 标准 CLI |
+| P2-3 | `tether.py gen-config --output=<path>` 直接写文件;默认 stdout | 小 | 标准 CLI |
 | P2-4 | README 加"快速接入 Claude Desktop"段,3 行命令: `gen-config` → 复制 → 重启 Claude Desktop | 小 | UX |
 
-**完成定义**:用户跑一行命令,Claude Desktop 重启后就能看到 UnrealBridge 工具。
+**完成定义**:用户跑一行命令,Claude Desktop 重启后就能看到 Tether 工具。
 
 ---
 
 ### P3 — 独立 MCP 薄壳(退路,如 P0 充分则不必做)
 
-P0 走通后,5.8 用户通过 EDA 蹭到 MCP 已经够。但如果用户想在 **5.7** 上也用 MCP 客户端(不能用 EDA,因为 EDA 是 5.8 only),需要 UnrealBridge 自带一个独立 MCP server。
+P0 走通后,5.8 用户通过 EDA 蹭到 MCP 已经够。但如果用户想在 **5.7** 上也用 MCP 客户端(不能用 EDA,因为 EDA 是 5.8 only),需要 Tether 自带一个独立 MCP server。
 
 | # | 能力 | 工程量 | 备注 |
 |---|---|---|---|
-| P3-1 | `Plugin/UnrealBridge/Source/UnrealBridgeMCPShell/` 独立模块,实现一个最小 MCP server(走 stdio 或 HTTP/SSE) | 中-大 | 用 [Anthropic MCP SDK](https://modelcontextprotocol.io) 的 spec 实现一个最小 server |
+| P3-1 | `Plugin/Tether/Source/TetherMCPShell/` 独立模块,实现一个最小 MCP server(走 stdio 或 HTTP/SSE) | 中-大 | 用 [Anthropic MCP SDK](https://modelcontextprotocol.io) 的 spec 实现一个最小 server |
 | P3-2 | 只暴露 1-3 个 tool:`exec_python` / `preflight` / `list_libraries` | 小 | 同 P0 设计原则 |
 | P3-3 | 每个 tool handler 转发到现有 TCP server | 小 | 复用 P0 抽出的共用函数 |
-| P3-4 | `bridge.py mcp-server --transport=stdio\|http` 启动模式 | 小 | 让用户能直接以 stdio 子进程方式启动 |
+| P3-4 | `tether.py mcp-server --transport=stdio\|http` 启动模式 | 小 | 让用户能直接以 stdio 子进程方式启动 |
 | P3-5 | `version-compatibility.md` 注明:5.8 用户**优先**走 P0(原生 EDA 寄生),5.7 及以下用户走 P3(独立薄壳) | 小 | 决策树 |
 
-**完成定义**:5.7 用户能用 Claude Desktop 调用 UnrealBridge。**优先级低于 P0** — 多数用户已经在升级 5.8,P3 的实际受益面在收窄。
+**完成定义**:5.7 用户能用 Claude Desktop 调用 Tether。**优先级低于 P0** — 多数用户已经在升级 5.8,P3 的实际受益面在收窄。
 
 ---
 
 ### P4 — 三模块拆分(可选,长期演进)
 
-EDA 的 `ModelContextProtocol` 在 2026-04-07 commit `[ModelContextProtocol] Decouple MCP server from Engine, split into three-module architecture` 拆成 `ModelContextProtocol` + `ModelContextProtocolEngine` + `ModelContextProtocolEditor` + 各自 Tests 模块。UnrealBridge 当前所有 21 个 Library 都在一个 `UnrealBridge` 模块里。
+EDA 的 `ModelContextProtocol` 在 2026-04-07 commit `[ModelContextProtocol] Decouple MCP server from Engine, split into three-module architecture` 拆成 `ModelContextProtocol` + `ModelContextProtocolEngine` + `ModelContextProtocolEditor` + 各自 Tests 模块。Tether 当前所有 21 个 Library 都在一个 `Tether` 模块里。
 
 借鉴价值:
 - Cooked build 时 Editor-only 代码不进 runtime 模块
@@ -137,8 +137,8 @@ EDA 的 `ModelContextProtocol` 在 2026-04-07 commit `[ModelContextProtocol] Dec
 
 | # | 能力 | 工程量 | 备注 |
 |---|---|---|---|
-| P4-1 | 设计模块切分:`UnrealBridgeRuntime`(Server/Discovery/共用类型) + `UnrealBridgeEditor`(21 个 Library + Reactive)+ `UnrealBridgeTests` | 中 | 现在 21 个 Library 全是 EditorOnly,主要拆 Server 和 Library |
-| P4-2 | 重构 `*.Build.cs` + 模块入口,处理跨模块的 UCLASS 引用 | 中 | 有 break-changes 风险 — UFUNCTION 全限定名变化可能影响 Python `unreal.UnrealBridgeXxxLibrary` 引用 |
+| P4-1 | 设计模块切分:`TetherRuntime`(Server/Discovery/共用类型) + `TetherEditor`(21 个 Library + Reactive)+ `TetherTests` | 中 | 现在 21 个 Library 全是 EditorOnly,主要拆 Server 和 Library |
+| P4-2 | 重构 `*.Build.cs` + 模块入口,处理跨模块的 UCLASS 引用 | 中 | 有 break-changes 风险 — UFUNCTION 全限定名变化可能影响 Python `unreal.TetherXxxLibrary` 引用 |
 | P4-3 | 验证 build matrix 全列仍然 pass + reference docs 不变 | 小 | 回归测试 |
 
 **完成定义**:模块依赖图清晰,但**不动 Python 端 import 路径**。
@@ -152,9 +152,9 @@ EDA 的 `ModelContextProtocol` 在 2026-04-07 commit `[ModelContextProtocol] Dec
 | 不做 | 原因 |
 |---|---|
 | **自建 Slate UI 面板** | P0 跑通后白嫖 EDA 的 `AIAssistant` 面板;重复造没有价值 |
-| **把 1020 UFUNCTION 注册成 1020 个 MCP tool** | token 灾难(20-40 万 tokens 常驻 system prompt);违背 UnrealBridge 的核心设计哲学;详见 `feedback_unrealbridge_rpc_over_mcp` memory |
+| **把 1020 UFUNCTION 注册成 1020 个 MCP tool** | token 灾难(20-40 万 tokens 常驻 system prompt);违背 Tether 的核心设计哲学;详见 `feedback_tether_rpc_over_mcp` memory |
 | **抛弃现有 TCP/UDP 通道,纯走 MCP** | 5.3-5.7 用户全部失联;heredoc 多步合并的 token 优势丢失;AST preflight 集成路径中断 |
-| **把 UnrealBridge 改成 EDA toolset PR 提交给 Epic** | NoRedist + Experimental + Epic 风格收紧 + Reactive/Perf/Pose Search 这些深度活 Epic 短期不会接受;1020 个函数白扔 |
+| **把 Tether 改成 EDA toolset PR 提交给 Epic** | NoRedist + Experimental + Epic 风格收紧 + Reactive/Perf/Pose Search 这些深度活 Epic 短期不会接受;1020 个函数白扔 |
 | **重写已有 Niagara / Sequencer / Dataflow 的能力** | EDA 已经做了,P1b shim 直接路由更经济 |
 
 ---
@@ -163,18 +163,18 @@ EDA 的 `ModelContextProtocol` 在 2026-04-07 commit `[ModelContextProtocol] Dec
 
 ### R1 — EDA 演进可能吃掉差异化
 
-**风险**:Epic 投入 EDA 速度很快(2026-Q1 起每周新 commit),长期可能在 BP / Anim / GAS 这些 UnrealBridge 优势领域追上来。
+**风险**:Epic 投入 EDA 速度很快(2026-Q1 起每周新 commit),长期可能在 BP / Anim / GAS 这些 Tether 优势领域追上来。
 
 **应对**:
-- UnrealBridge 的护城河里,**Epic 没动机做的部分**(token 经济、AST 防幻觉、Reactive 推送、Pose Search private 字段、Perf AAA 级、特权 UPROPERTY)是真正的差异化。盯紧 EDA 是否在这些领域投入,如果是,差异化缩短;如果不是(更可能),反而拉大。
-- 走 P0 + P1b 的策略本身是 hedge — 即便 EDA 把 BP/Anim 也吃了,UnrealBridge 仍然是"在 EDA 之上"的深度通道。
+- Tether 的护城河里,**Epic 没动机做的部分**(token 经济、AST 防幻觉、Reactive 推送、Pose Search private 字段、Perf AAA 级、特权 UPROPERTY)是真正的差异化。盯紧 EDA 是否在这些领域投入,如果是,差异化缩短;如果不是(更可能),反而拉大。
+- 走 P0 + P1b 的策略本身是 hedge — 即便 EDA 把 BP/Anim 也吃了,Tether 仍然是"在 EDA 之上"的深度通道。
 
 ### R2 — `ToolsetRegistry` API 不稳定
 
 **风险**:EDA 全部 `IsExperimentalVersion: true`,API 可能在 5.9 / 5.10 大改。
 
 **应对**:
-- P0 的 `UnrealBridgeEDA` 模块用条件编译守门,某个版本 API 破坏性改动时只需要适配该模块,不影响主体
+- P0 的 `TetherEDA` 模块用条件编译守门,某个版本 API 破坏性改动时只需要适配该模块,不影响主体
 - reference docs 注明 EDA 集成是 experimental 状态,跟随 Epic 版本
 
 ### R3 — 5.8 适配工作量超预期
@@ -190,15 +190,15 @@ EDA 的 `ModelContextProtocol` 在 2026-04-07 commit `[ModelContextProtocol] Dec
 **风险**:EDA 的 `IToolsetProvider` 接口可能假设 toolset 注册多个细粒度 tool,只注册一个粗粒度 `exec_python` 可能在 UI 层面表现不佳(EDA 的 AIAssistant 面板可能按 tool 数量做某种 grouping)。
 
 **应对**:
-- 在 P0-1 设计阶段先看 EDA 现有 toolset 的注册模式 — 看 EDA 自己的 16 个 toolset 平均注册多少 tool。如果 EDA 假设 N×多个 tool,UnrealBridge 可以**轻度妥协**注册 3-5 个粗粒度 tool(如 `exec_python` + `query_assets` + `query_blueprint` + `query_anim` + `query_perf`),每个 tool 仍然以自由文本 Python 为主参数,但在 UI 上看起来更像"多 toolset"。token 代价仍然 < 1000(对比 1020 tool 的 20-40 万 tokens)。
+- 在 P0-1 设计阶段先看 EDA 现有 toolset 的注册模式 — 看 EDA 自己的 16 个 toolset 平均注册多少 tool。如果 EDA 假设 N×多个 tool,Tether 可以**轻度妥协**注册 3-5 个粗粒度 tool(如 `exec_python` + `query_assets` + `query_blueprint` + `query_anim` + `query_perf`),每个 tool 仍然以自由文本 Python 为主参数,但在 UI 上看起来更像"多 toolset"。token 代价仍然 < 1000(对比 1020 tool 的 20-40 万 tokens)。
 
 ### R5 — 与 EDA `AIAssistant` 面板的 Python 命名冲突
 
-**风险**:EDA 的 `AIAssistant` 也是基于 Python + EditorScripting,可能和 UnrealBridge 的 Python helper 共享命名空间冲突。
+**风险**:EDA 的 `AIAssistant` 也是基于 Python + EditorScripting,可能和 Tether 的 Python helper 共享命名空间冲突。
 
 **应对**:
-- UnrealBridge Python 包用 `unreal_bridge` 顶层命名空间,本身已经隔离
-- 反射 API 调用走 `unreal.UnrealBridgeXxxLibrary` 形态,Epic 自己的 toolset 走 `unreal.<EDA_Toolset>` 形态,无 collision
+- Tether Python 包用 `tether` 顶层命名空间,本身已经隔离
+- 反射 API 调用走 `unreal.TetherXxxLibrary` 形态,Epic 自己的 toolset 走 `unreal.<EDA_Toolset>` 形态,无 collision
 
 ---
 
@@ -223,7 +223,7 @@ EDA 的 `ModelContextProtocol` 在 2026-04-07 commit `[ModelContextProtocol] Dec
 - P3:3-5 天(可选)
 - P4:2-3 天(可选)
 
-**最小可见交付**(MVP):P1a + P0 = 4-8 天,UnrealBridge 在 5.8 上跑通 + 通过 EDA 暴露给所有 MCP 客户端。
+**最小可见交付**(MVP):P1a + P0 = 4-8 天,Tether 在 5.8 上跑通 + 通过 EDA 暴露给所有 MCP 客户端。
 
 ---
 
@@ -240,7 +240,7 @@ EDA 的 `ModelContextProtocol` 在 2026-04-07 commit `[ModelContextProtocol] Dec
 
 ## 引用
 
-- `<repo-root>/CLAUDE.md` — UnrealBridge 架构总览
+- `<repo-root>/CLAUDE.md` — Tether 架构总览
 - `<repo-root>/README.md` — 协议、Library 列表、能力清单
 - `<repo-root>/docs/version-compatibility.md` — UE 5.x 兼容性矩阵
 - `<repo-root>/docs/plans/agent-capability-gaps.md` — 已识别的能力缺口(可能与 P1b 重叠)

@@ -9,15 +9,15 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-HEADER = ROOT / "Plugin/UnrealBridge/Source/UnrealBridge/Public/UnrealBridgeBlueprintLibrary.h"
-SOURCE = ROOT / "Plugin/UnrealBridge/Source/UnrealBridge/Private/UnrealBridgeBlueprintLibrary.cpp"
-REFERENCE = ROOT / ".claude/skills/unreal-bridge/references/bridge-blueprint-api.md"
-MANIFEST = ROOT / ".claude/skills/unreal-bridge/scripts/bridge_manifest.json"
-WRAPPER = ROOT / "Plugin/UnrealBridge/Content/Python/unreal_bridge.py"
+HEADER = ROOT / "Plugin/Tether/Source/Tether/Public/TetherBlueprintLibrary.h"
+SOURCE = ROOT / "Plugin/Tether/Source/Tether/Private/TetherBlueprintLibrary.cpp"
+REFERENCE = ROOT / ".claude/skills/tether/references/tether-blueprint-api.md"
+MANIFEST = ROOT / ".claude/skills/tether/scripts/tether_manifest.json"
+WRAPPER = ROOT / "Plugin/Tether/Content/Python/tether.py"
 AUTOMATION = (
     ROOT
-    / "Plugin/UnrealBridge/Source/UnrealBridge/Private/Tests"
-    / "UnrealBridgeAddExternalVariableNodeTests.cpp"
+    / "Plugin/Tether/Source/Tether/Private/Tests"
+    / "TetherAddExternalVariableNodeTests.cpp"
 )
 
 
@@ -47,13 +47,13 @@ class AddExternalVariableNodeContractTests(unittest.TestCase):
         cls.automation = AUTOMATION.read_text(encoding="utf-8")
         cls.function = extract_function(
             cls.source,
-            "FString UUnrealBridgeBlueprintLibrary::AddExternalVariableNode(",
+            "FString UTetherBlueprintLibrary::AddExternalVariableNode(",
         )
 
     def test_reflected_api_is_adjacent_to_self_variable_api(self) -> None:
         declaration = re.compile(
             r"AddVariableNode\([^;]+;\s*/\*\*.*?"
-            r"UFUNCTION\(BlueprintCallable, Category = \"UnrealBridge\|Blueprint\"\)\s*"
+            r"UFUNCTION\(BlueprintCallable, Category = \"Tether\|Blueprint\"\)\s*"
             r"static FString AddExternalVariableNode\(",
             re.DOTALL,
         )
@@ -75,7 +75,7 @@ class AddExternalVariableNodeContractTests(unittest.TestCase):
             self.assertLess(self.function.index(required_validation), transaction)
         self.assertEqual(1, self.function.count("FScopedTransaction"))
         self.assertNotIn("return FString();", self.function.replace("return FString();", "", 1))
-        self.assertIn("UE_LOG(LogUnrealBridgeBlueprintGraph, Warning", self.function)
+        self.assertIn("UE_LOG(LogTetherBlueprintGraph, Warning", self.function)
         for diagnostic_field in (
             "Blueprint='%s'",
             "Graph='%s'",
@@ -131,7 +131,7 @@ class AddExternalVariableNodeContractTests(unittest.TestCase):
             self.assertIn(required, self.automation)
 
     def test_generated_surfaces_match_the_reflected_signature(self) -> None:
-        function = self.manifest["libraries"]["UnrealBridgeBlueprintLibrary"]["functions"][
+        function = self.manifest["libraries"]["TetherBlueprintLibrary"]["functions"][
             "add_external_variable_node"
         ]
         self.assertEqual(

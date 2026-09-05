@@ -12,7 +12,7 @@
 
 ## B1. 空间 / 几何查询原语
 
-感知的另一半 — 不是"看到"，是"算到"。现在 agent 要做 gameplay / AI / level 相关的几何判断，只能导出 OBJ 再外部算。bridge-side 查询能一个调用完成 90% 的问题。
+感知的另一半 — 不是"看到"，是"算到"。现在 agent 要做 gameplay / AI / level 相关的几何判断，只能导出 OBJ 再外部算。tether-side 查询能一个调用完成 90% 的问题。
 
 | # | 项目 | 工程量 | 频次 | 说明 |
 |---|---|---|---|---|
@@ -49,9 +49,9 @@
 
 | # | 项目 | 工程量 | 频次 | 说明 |
 |---|---|---|---|---|
-| 61 | **Headless editor 启动支持** | 中 | 中 | 当前 bridge 仅支持交互式编辑器，模块明确在 UE 实际运行 Commandlet 时排除。`UnrealEditor-Cmd.exe` 不应被笼统视为 Commandlet；未来若要支持 Commandlet 或其他真正的无头会话，需要显式重构模块、拆分 Commandlet-safe 服务与交互式编辑器／Slate 依赖，而不是只切换可执行文件或启动参数。 |
-| 62 | **共享 bridge 服务** | 中-大 | 低-中 | TCP 不再只绑 localhost。团队几个 agent 连一个编辑器实例（读写互斥 + 权限），或每人一个容器跑各自实例。 |
-| 63 | **Job queue 模式** | 中 | 中 | "排 50 个 bridge 脚本，按依赖图跑完，每个有超时"。现在 GameThread 串行 exec，并发全卡。需要把重脚本拆成"快注册 + 慢 tick"，让 bridge 侧排队。 |
+| 61 | **Headless editor 启动支持** | 中 | 中 | 当前 tether 仅支持交互式编辑器，模块明确在 UE 实际运行 Commandlet 时排除。`UnrealEditor-Cmd.exe` 不应被笼统视为 Commandlet；未来若要支持 Commandlet 或其他真正的无头会话，需要显式重构模块、拆分 Commandlet-safe 服务与交互式编辑器／Slate 依赖，而不是只切换可执行文件或启动参数。 |
+| 62 | **共享 tether 服务** | 中-大 | 低-中 | TCP 不再只绑 localhost。团队几个 agent 连一个编辑器实例（读写互斥 + 权限），或每人一个容器跑各自实例。 |
+| 63 | **Job queue 模式** | 中 | 中 | "排 50 个 tether 脚本，按依赖图跑完，每个有超时"。现在 GameThread 串行 exec，并发全卡。需要把重脚本拆成"快注册 + 慢 tick"，让 tether 侧排队。 |
 
 ## B5. 代码生成（源码层）
 
@@ -85,11 +85,11 @@
 
 ## B8. UE NNE / ONNX 集成
 
-UE 5 自带 Neural Network Engine 插件。bridge 连上就让 agent 在引擎内做视觉推理 / 合成数据管线。
+UE 5 自带 Neural Network Engine 插件。tether 连上就让 agent 在引擎内做视觉推理 / 合成数据管线。
 
 | # | 项目 | 工程量 | 频次 | 说明 |
 |---|---|---|---|---|
-| 75 | **Bridge 暴露 NNE** | 中 | 中-高 | `run_onnx_model(path, input_tensor) → output_tensor`。配合 A1-#1 screenshot，agent 对当前画面跑 YOLO / SAM 得检测框 / 分割，不用走外部 vision API round-trip。 |
+| 75 | **Tether 暴露 NNE** | 中 | 中-高 | `run_onnx_model(path, input_tensor) → output_tensor`。配合 A1-#1 screenshot，agent 对当前画面跑 YOLO / SAM 得检测框 / 分割，不用走外部 vision API round-trip。 |
 | 76 | **合成数据生成** | 中 | 低-中 | "在这 scene 扫 1000 个相机 pose，每个 dump 颜色 + depth + object ID mask"，直接得 ML 训练数据。和 B1-#51 投影 + A1-#2 GBuffer 组合。游戏 AI / CV 管线入口。 |
 
 ## B9. 构建环境健康检查
@@ -99,16 +99,16 @@ UE 5 自带 Neural Network Engine 插件。bridge 连上就让 agent 在引擎�
 | # | 项目 | 工程量 | 频次 | 说明 |
 |---|---|---|---|---|
 | 77 | **Preflight 检查器** | 小 | 中 | MSVC / Windows SDK / .NET / 磁盘空间 / GPU / VRAM 一把扫，跑 Cook / rebuild 前判定。之前看到 `MSVC 14.38.33130 required` 警告就是这类该提前抓的。 |
-| 78 | **引擎版本漂移检测** | 小 | 低-中 | .uproject 的 `EngineAssociation` 和实际连接 bridge 编辑器版本是否匹配。跨引擎版本切换时 agent 第一件事该查这个。 |
+| 78 | **引擎版本漂移检测** | 小 | 低-中 | .uproject 的 `EngineAssociation` 和实际连接 tether 编辑器版本是否匹配。跨引擎版本切换时 agent 第一件事该查这个。 |
 | 79 | **编译产物完整性** | 小 | 中 | `Binaries/*.dll` 时间戳和 `Intermediate/**/*.obj` 是否脱节；判断是否需要 Rebuild 而不是 Build。避免 LC 假成功但 DLL 其实没更。 |
 
 ## B10. 编辑器内 Slate 扩展（反向通道）
 
-反过来：让人类用户从编辑器 UI 触发 bridge 调用。很多团队成员不会装 bridge 但会点按钮。
+反过来：让人类用户从编辑器 UI 触发 tether 调用。很多团队成员不会装 tether 但会点按钮。
 
 | # | 项目 | 工程量 | 频次 | 说明 |
 |---|---|---|---|---|
-| 80 | **Custom editor tab / toolbar button** | 中 | 中 | 编辑器里注册一个"Agent"面板，常用 bridge 操作（hot_reload、lint、format BP、capture viewport）当按钮。`IEditorModule::StartupModule` 里 `FLevelEditorModule::GetToolBarExtensibilityManager()` 挂 hook。 |
+| 80 | **Custom editor tab / toolbar button** | 中 | 中 | 编辑器里注册一个"Agent"面板，常用 tether 操作（hot_reload、lint、format BP、capture viewport）当按钮。`IEditorModule::StartupModule` 里 `FLevelEditorModule::GetToolBarExtensibilityManager()` 挂 hook。 |
 | 81 | **Content browser 上下文菜单扩展** | 小-中 | 中 | 右键 asset → "Ask agent about this" / "Run lint" / "Generate test"。`FContentBrowserMenuExtender_SelectedAssets`。 |
 | 82 | **Details panel inject** | 中 | 低-中 | 选中 actor 时在 Details 面板里显示 agent 建议（如 "这个 actor 未保存变更 / 引用了已删除 asset"）。`FPropertyEditorModule::RegisterCustomClassLayout`。 |
 
@@ -141,8 +141,8 @@ UE 5 自带 Neural Network Engine 插件。bridge 连上就让 agent 在引擎�
 
 1. **B1 空间查询原语（#49-#51）** — agent 做任何 gameplay / AI / level 判断的底座，目前全靠导出 OBJ 外部算。一层薄封装，用处无处不在。
 2. **B3 事务沙箱 + diff-before-commit（#57 + #60）** — 对 agent "敢不敢尝试"的心理阈值降维打击。不怕改坏了，迭代速度变快。
-3. **B10 编辑器 Slate 扩展（#80-#81）** — 反向把 agent 能力织进人类用户的工作流。不装 bridge 的团队成员也能受益。
-4. **B4 Headless / CI 模式（#61）** — 让 bridge 进入 build system，PR 自动跑 automation + golden-image + lint。有 agent 的 CI 是完全不同级别的项目。
+3. **B10 编辑器 Slate 扩展（#80-#81）** — 反向把 agent 能力织进人类用户的工作流。不装 tether 的团队成员也能受益。
+4. **B4 Headless / CI 模式（#61）** — 让 tether 进入 build system，PR 自动跑 automation + golden-image + lint。有 agent 的 CI 是完全不同级别的项目。
 5. **B8 UE NNE 集成（#75）** — 不出引擎做视觉推理，成本正在变低，合成训练数据管线顺带打开。
 
 ---

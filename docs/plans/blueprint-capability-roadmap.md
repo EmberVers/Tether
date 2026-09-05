@@ -1,6 +1,6 @@
 # Blueprint 读/写/理解/操作能力路线图
 
-盘点 UnrealBridge 在蓝图全生命周期（读取、理解、编辑、执行验证）上相对"AI 从自然语言自主生成蓝图"目标的能力缺口，按优先级排序。
+盘点 Tether 在蓝图全生命周期（读取、理解、编辑、执行验证）上相对"AI 从自然语言自主生成蓝图"目标的能力缺口，按优先级排序。
 
 最后更新：2026-04-19（反思清单 Top-5：batch_ops / insert-on-wire / graph-diff / 签名摩擦修复 / CDO override 查询 一并落地）
 
@@ -54,7 +54,7 @@
 | # | 项目 | 影响 |
 |---|---|---|
 | 1 | **Timeline 轨道 CRUD** | 现只能改 length/autoplay/loop；无法增删 Float/Vector/Event/Color 轨道与关键帧。所有动画/渐变/延时过渡类 BP 做不出来。 |
-| 2 | **AnimGraph + 状态机写** | `UnrealBridgeAnimLibrary` 只读。无法建状态、改转换、改 BlendSpace 采样、改 LinkedLayer。角色 BP 整类做不出来。 |
+| 2 | **AnimGraph + 状态机写** | `TetherAnimLibrary` 只读。无法建状态、改转换、改 BlendSpace 采样、改 LinkedLayer。角色 BP 整类做不出来。 |
 | 3 | **GameplayAbility 图编辑** | 只读 CDO 元数据。无法编辑 GA 激活图/GameplayEffect/GameplayCue。所有 GAS 项目卡死。 |
 | 4 | ~~**Enhanced Input 绑定**~~ | ✅ 2026-05-06 ~ 2026-05-07 完整交付。`79fb462` IA/IMC 资产枚举 + IMC 映射 read/edit；P0 `302ca97`/`9e347af`/`0e7047b`/`96838ea`/`4579578`/`a68c8b3` IA/IMC 创建 + Trigger/Modifier 实例编辑 + K2Node_EnhancedInputAction 节点工厂 + Pawn 脚手架；P1+P2 `833d1e1`/`34e1eea`/`b5515b9` 跨 BP 引用搜索 + per-mapping IMC 编辑 + PIE 运行时态 + 旧 K2Node 工厂 + 旧 ini 映射 + 校验 / 冲突检测 + JSON 一键导入导出。共 34 个 UFUNCTION + 4 个 Python helper。非显然实现锁存于 `.claude/memory/retrievable/project_enhanced_input_p0_shipped.md` 与 `_p1_p2_shipped.md`。 |
 | 5 | ~~**invoke_blueprint_function(bp, func, args) → result**~~ | ✅ 2026-04-19 落地。transient 实例 ProcessEvent；支持 Actor（SpawnActor）+ 普通 UObject；拒绝 latent / 非 BlueprintCallable；JSON 入参 + 出参。 |
@@ -108,9 +108,9 @@
 
 ---
 
-## 排除项（非 Bridge 职责）
+## 排除项（非 Tether 职责）
 
-这些由 LLM 侧处理，不需要 Bridge API：
+这些由 LLM 侧处理，不需要 Tether API：
 - 自然语言 → 节点选择（LLM 做）
 - 控制流自然语言摘要（LLM 做）
 - 视觉化 SVG / mermaid 图输出（LLM 做）

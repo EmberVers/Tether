@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the UnrealBridge plugin against multiple Unreal Engine versions.
+"""Build the Tether plugin against multiple Unreal Engine versions.
 
 Reads engine paths from tools/engines.local.json (preferred) or tools/engines.json,
 runs RunUAT.bat BuildPlugin per engine, captures logs, and writes an aggregate
@@ -31,7 +31,7 @@ from typing import Optional
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TOOLS_DIR = REPO_ROOT / "tools"
-PLUGIN_FILE = REPO_ROOT / "Plugin" / "UnrealBridge" / "UnrealBridge.uplugin"
+PLUGIN_FILE = REPO_ROOT / "Plugin" / "Tether" / "Tether.uplugin"
 OUT_ROOT = TOOLS_DIR / "build_engines"
 REPORT_FILE = REPO_ROOT / "build_matrix_report.md"
 
@@ -226,7 +226,7 @@ def fmt_duration(s: float) -> str:
 
 def write_report(results: list[EngineResult], config_src: Path, total_duration: float) -> None:
     out: list[str] = []
-    out.append("# UnrealBridge Build Matrix Report")
+    out.append("# Tether Build Matrix Report")
     out.append("")
     out.append(f"- Run: {datetime.now().isoformat(timespec='seconds')}")
     out.append(f"- Total duration: {fmt_duration(total_duration)}")
@@ -284,7 +284,7 @@ def parse_versions_arg(s: str) -> set[str]:
     return {v.strip() for v in s.split(",") if v.strip()}
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Build UnrealBridge plugin against multiple UE versions.")
+    ap = argparse.ArgumentParser(description="Build Tether plugin against multiple UE versions.")
     ap.add_argument("--only", type=parse_versions_arg, help="Comma-separated versions to build (e.g. 5.4,5.7)")
     ap.add_argument("--skip", type=parse_versions_arg, default=set(), help="Comma-separated versions to skip")
     ap.add_argument("--verbose", action="store_true", help="Mirror UAT output to stdout")

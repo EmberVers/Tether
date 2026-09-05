@@ -11,11 +11,11 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE_PATH = (
     ROOT
     / "Plugin"
-    / "UnrealBridge"
+    / "Tether"
     / "Source"
-    / "UnrealBridge"
+    / "Tether"
     / "Private"
-    / "UnrealBridgeGameplayLibrary.cpp"
+    / "TetherGameplayLibrary.cpp"
 )
 SOURCE = SOURCE_PATH.read_text(encoding="utf-8")
 
@@ -98,7 +98,7 @@ LOCAL_PLAYER_CALLERS = {
 
 def _function_body(name: str) -> str:
     public_pattern = re.compile(
-        rf"UUnrealBridgeGameplayLibrary::{re.escape(name)}\s*\([^;{{}}]*\)\s*\{{",
+        rf"UTetherGameplayLibrary::{re.escape(name)}\s*\([^;{{}}]*\)\s*\{{",
         re.MULTILINE,
     )
     helper_pattern = re.compile(
@@ -131,7 +131,7 @@ class GameplayWorldRoutingContractTests(unittest.TestCase):
         for name in sorted(LOCAL_PLAYER_CALLERS):
             body = _function_body(name)
             self.assertIn("GetLocalPlayerPIEWorld()", body, name)
-            self.assertNotIn("BridgeAgentImpl::GetPIEWorld()", body, name)
+            self.assertNotIn("TetherAgentImpl::GetPIEWorld()", body, name)
 
         # The extra occurrence in each count is the source function definition.
         self.assertEqual(SOURCE.count("GetPIEWorld()"), len(GENERAL_CALLERS) + 1)

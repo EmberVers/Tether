@@ -12,18 +12,18 @@ from types import SimpleNamespace
 from unittest import mock
 
 MODULE_PATH = (Path(__file__).resolve().parents[1] / ".claude" / "skills" /
-               "unreal-bridge" / "scripts" / "bridge.py")
-SPEC = importlib.util.spec_from_file_location("unreal_bridge_cli_identity_tests", MODULE_PATH)
+               "tether" / "scripts" / "tether.py")
+SPEC = importlib.util.spec_from_file_location("tether_cli_identity_tests", MODULE_PATH)
 if SPEC is None or SPEC.loader is None:
-    raise RuntimeError(f"Cannot load bridge CLI from {MODULE_PATH}")
-bridge = importlib.util.module_from_spec(SPEC)
-sys.modules[SPEC.name] = bridge
-SPEC.loader.exec_module(bridge)
+    raise RuntimeError(f"Cannot load tether CLI from {MODULE_PATH}")
+tether = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = tether
+SPEC.loader.exec_module(tether)
 
 
 def identity(instance_id="11111111-2222-4333-8444-555555555555", project_path=None):
-    return bridge.Endpoint(
-        protocol_version=bridge.PROTOCOL_VERSION,
+    return tether.Endpoint(
+        protocol_version=tether.PROTOCOL_VERSION,
         instance_id=instance_id,
         pid=4242,
         project="TestProject",
@@ -34,7 +34,7 @@ def identity(instance_id="11111111-2222-4333-8444-555555555555", project_path=No
         tcp_bind="127.0.0.1",
         tcp_port=32123,
         token_fingerprint="",
-        capabilities=bridge.EXACT_CAPABILITIES,
+        capabilities=tether.EXACT_CAPABILITIES,
         response_host="127.0.0.1",
     )
 
@@ -82,33 +82,33 @@ class FakeTcpSocket:
 class EndpointIdentityTests(unittest.TestCase):
     def send_with_socket(self, fake_socket, ep=None):
         ep = ep or identity()
-        with mock.patch.object(bridge.socket, "socket", return_value=fake_socket):
-            return bridge.send_request("127.0.0.1", 32123,
+        with mock.patch.object(tether.socket, "socket", return_value=fake_socket):
+            return tether.send_request("127.0.0.1", 32123,
                                        {"command": "ping"}, 1, identity=ep)
 
     def test_cpp_and_python_protocol_constants_match(self):
-        header = (Path(__file__).resolve().parents[1] / "Plugin" / "UnrealBridge" /
-                  "Source" / "UnrealBridge" / "Private" /
-                  "UnrealBridgeProtocol.h").read_text(encoding="utf-8")
-        self.assertIn(f"constexpr int32 Version = {bridge.PROTOCOL_VERSION};", header)
-        for capability in bridge.EXACT_CAPABILITIES:
+        header = (Path(__file__).resolve().parents[1] / "Plugin" / "Tether" /
+                  "Source" / "Tether" / "Private" /
+                  "TetherProtocol.h").read_text(encoding="utf-8")
+        self.assertIn(f"constexpr int32 Version = {tether.PROTOCOL_VERSION};", header)
+        for capability in tether.EXACT_CAPABILITIES:
             self.assertIn(f'TEXT("{capability}")', header)
 
     def test_production_handler_uses_exact_dispatcher_as_secondary_source_check(self):
-        source = (Path(__file__).resolve().parents[1] / "Plugin" / "UnrealBridge" /
-                  "Source" / "UnrealBridge" / "Private" /
-                  "UnrealBridgeServer.cpp").read_text(encoding="utf-8")
-        handler = source[source.index("void FUnrealBridgeServer::HandleClient"):
+        source = (Path(__file__).resolve().parents[1] / "Plugin" / "Tether" /
+                  "Source" / "Tether" / "Private" /
+                  "TetherServer.cpp").read_text(encoding="utf-8")
+        handler = source[source.index("void FTetherServer::HandleClient"):
                          source.index("// Python execution pipeline")]
-        dispatcher = handler.index("FUnrealBridgeExactRequestDispatcher::TryDispatch")
-        first_command_body = handler.index("EUnrealBridgeExactCommand::Ping")
+        dispatcher = handler.index("FTetherExactRequestDispatcher::TryDispatch")
+        first_command_body = handler.index("ETetherExactCommand::Ping")
         self.assertLess(dispatcher, first_command_body)
         self.assertIn("if (!bExactRequestValid)", handler[dispatcher:first_command_body])
         self.assertIn("ResponseIdentity.AppendToResponse(Response)", handler)
 
     def test_exec_wire_is_nested_and_preserves_exact_project_identity(self):
         ep = identity(project_path="C:\\Projects\\Exact\\TestProject.uproject")
-        wire = bridge._build_exact_payload({
+        wire = tether._build_exact_payload({
             "id": "request-1", "script": "SIDE_EFFECT()", "timeout": 3,
         }, ep)
         self.assertEqual(wire["command"], "exact_exec")
@@ -120,7 +120,7 @@ class EndpointIdentityTests(unittest.TestCase):
         for command in ("ping", "editor_status", "gamethread_ping", "debug_resume",
                         "modal_status", "modal_action"):
             with self.subTest(command=command):
-                wire = bridge._build_exact_payload({"command": command}, identity())
+                wire = tether._build_exact_payload({"command": command}, identity())
                 self.assertEqual(wire["command"], f"exact_{command}")
                 self.assertEqual(wire["request"], {})
 
@@ -144,29 +144,29 @@ class EndpointIdentityTests(unittest.TestCase):
         ]
         for response in cases:
             with self.subTest(response=response):
-                with self.assertRaises(bridge.EndpointIdentityError):
-                    bridge._verify_response_identity(response, ep)
+                with self.assertRaises(tether.EndpointIdentityError):
+                    tether._verify_response_identity(response, ep)
 
     def test_stale_instance_and_wrong_project_are_rejected(self):
         stale = {**valid_response(), "instance_id": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"}
         wrong_project = {**valid_response(), "project_path": "C:/Other/Other.uproject"}
         for response in (stale, wrong_project):
-            with self.assertRaises(bridge.EndpointIdentityError):
-                bridge._verify_response_identity(response, identity())
+            with self.assertRaises(tether.EndpointIdentityError):
+                tether._verify_response_identity(response, identity())
 
     def test_legacy_response_and_missing_identity_fail_without_fallback(self):
-        with self.assertRaises(bridge.EndpointIdentityError):
-            bridge._verify_response_identity({"success": True, "output": "pong"}, identity())
-        with self.assertRaises(bridge.EndpointIdentityError):
-            bridge.send_request("127.0.0.1", 32123, {"command": "ping"}, 1)
+        with self.assertRaises(tether.EndpointIdentityError):
+            tether._verify_response_identity({"success": True, "output": "pong"}, identity())
+        with self.assertRaises(tether.EndpointIdentityError):
+            tether.send_request("127.0.0.1", 32123, {"command": "ping"}, 1)
 
     def test_direct_endpoint_requires_and_preserves_inseparable_identity_tuple(self):
         missing = SimpleNamespace(endpoint="127.0.0.1:32123", token=None,
                                   instance_id=None, expected_project_path=None,
                                   expected_pid=None)
-        with mock.patch.dict(bridge.os.environ, {}, clear=True):
+        with mock.patch.dict(tether.os.environ, {}, clear=True):
             with self.assertRaises(SystemExit) as raised:
-                bridge.resolve_target(missing)
+                tether.resolve_target(missing)
         self.assertIn("direct legacy writes are not allowed", str(raised.exception))
 
         exact_path = "C:\\Projects\\ExactCase\\TestProject.uproject"
@@ -176,7 +176,7 @@ class EndpointIdentityTests(unittest.TestCase):
             expected_project_path=exact_path,
             expected_pid=4242,
         )
-        host, port, token, project_path, ep = bridge.resolve_target(args)
+        host, port, token, project_path, ep = tether.resolve_target(args)
         self.assertEqual((host, port, token), ("192.0.2.10", 32123, "secret"))
         self.assertEqual(project_path, exact_path)
         self.assertEqual(ep.project_path, exact_path)
@@ -187,16 +187,16 @@ class EndpointIdentityTests(unittest.TestCase):
                 endpoint=None, project="TestProject", discovery_group=None,
                 discovery_timeout=10, discovery_scope=cli_scope, token=None,
             )
-            with (mock.patch.dict(bridge.os.environ, environment, clear=True),
-                  mock.patch.object(bridge, "discover", return_value=[identity()]) as discover,
-                  mock.patch.object(bridge, "load_token", return_value=None)):
-                bridge.resolve_target(args)
+            with (mock.patch.dict(tether.os.environ, environment, clear=True),
+                  mock.patch.object(tether, "discover", return_value=[identity()]) as discover,
+                  mock.patch.object(tether, "load_token", return_value=None)):
+                tether.resolve_target(args)
             return discover.call_args.kwargs["scope"]
 
         self.assertEqual(resolve(None, {}), "local")
-        self.assertEqual(resolve(None, {"UNREAL_BRIDGE_DISCOVERY_SCOPE": "lan"}), "lan")
+        self.assertEqual(resolve(None, {"UNREAL_TETHER_DISCOVERY_SCOPE": "lan"}), "lan")
         self.assertEqual(
-            resolve("local", {"UNREAL_BRIDGE_DISCOVERY_SCOPE": "lan"}), "local"
+            resolve("local", {"UNREAL_TETHER_DISCOVERY_SCOPE": "lan"}), "local"
         )
 
     def test_invalid_environment_discovery_scope_fails_before_probe(self):
@@ -205,32 +205,32 @@ class EndpointIdentityTests(unittest.TestCase):
             discovery_timeout=10, discovery_scope=None, token=None,
         )
         with (mock.patch.dict(
-                  bridge.os.environ,
-                  {"UNREAL_BRIDGE_DISCOVERY_SCOPE": "internet"}, clear=True),
-              mock.patch.object(bridge, "discover") as discover):
+                  tether.os.environ,
+                  {"UNREAL_TETHER_DISCOVERY_SCOPE": "internet"}, clear=True),
+              mock.patch.object(tether, "discover") as discover):
             with self.assertRaisesRegex(SystemExit, "invalid scope"):
-                bridge.resolve_target(args)
+                tether.resolve_target(args)
         discover.assert_not_called()
 
     def test_response_frame_length_boundaries(self):
-        for accepted in (1, bridge.MAX_RESPONSE_FRAME_BYTES):
-            bridge._validate_response_frame_length(accepted)
-        for rejected in (0, bridge.MAX_RESPONSE_FRAME_BYTES + 1, 0xFFFFFFFF):
-            with self.assertRaises(bridge.BridgeProtocolError):
-                bridge._validate_response_frame_length(rejected)
+        for accepted in (1, tether.MAX_RESPONSE_FRAME_BYTES):
+            tether._validate_response_frame_length(accepted)
+        for rejected in (0, tether.MAX_RESPONSE_FRAME_BYTES + 1, 0xFFFFFFFF):
+            with self.assertRaises(tether.TetherProtocolError):
+                tether._validate_response_frame_length(rejected)
 
     def test_oversized_frame_is_rejected_before_body_read(self):
-        sock = FakeTcpSocket(body=b"", declared_length=bridge.MAX_RESPONSE_FRAME_BYTES + 1)
-        with self.assertRaises(bridge.BridgeProtocolError):
+        sock = FakeTcpSocket(body=b"", declared_length=tether.MAX_RESPONSE_FRAME_BYTES + 1)
+        with self.assertRaises(tether.TetherProtocolError):
             self.send_with_socket(sock)
         self.assertEqual(len(sock.incoming), 0)
 
     def test_truncated_invalid_utf8_invalid_json_and_non_object_frames_fail(self):
         cases = [
             (FakeTcpSocket(body=b"{}", declared_length=20), ConnectionError),
-            (FakeTcpSocket(body=b"\xff"), bridge.BridgeProtocolError),
-            (FakeTcpSocket(body=b"{"), bridge.BridgeProtocolError),
-            (FakeTcpSocket(body=b"[]"), bridge.BridgeProtocolError),
+            (FakeTcpSocket(body=b"\xff"), tether.TetherProtocolError),
+            (FakeTcpSocket(body=b"{"), tether.TetherProtocolError),
+            (FakeTcpSocket(body=b"[]"), tether.TetherProtocolError),
         ]
         for sock, error_type in cases:
             with self.subTest(error_type=error_type):

@@ -1,0 +1,2026 @@
+// Ported from UnrealClientProtocol (MIT License - Italink)
+
+#include "TetherAssetLibrary.h"
+#include "AssetRegistry/ARFilter.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "AssetRegistry/IAssetRegistry.h"
+#include "AssetToolsModule.h"
+#include "Engine/Blueprint.h"
+#include "Engine/BlueprintGeneratedClass.h"
+#include "Engine/DataAsset.h"
+#include "Factories/DataAssetFactory.h"
+#include "IAssetTools.h"
+#include "UObject/ObjectRedirector.h"
+#include "HAL/FileManager.h"
+#include "Misc/PackageName.h"
+#include "UObject/TopLevelAssetPath.h"
+#include "Engine/StaticMesh.h"
+#include "Engine/StaticMeshSocket.h"
+#include "Engine/SkeletalMesh.h"
+#include "Engine/SkeletalMeshSocket.h"
+#include "Engine/Texture2D.h"
+#include "Engine/SkinnedAssetCommon.h"
+#include "Materials/MaterialInterface.h"
+#include "Sound/SoundWave.h"
+#include "Sound/SoundCue.h"
+#include "Animation/Skeleton.h"
+#include "PhysicsEngine/PhysicsAsset.h"
+#include "PixelFormat.h"
+#include "StaticMeshResources.h"
+#include "PhysicsEngine/BodySetup.h"
+#include "Rendering/SkeletalMeshRenderData.h"
+#include "Rendering/SkeletalMeshLODRenderData.h"
+#include "ScopedTransaction.h"
+#include "FileHelpers.h"
+#include "UObject/Package.h"
+#include "UObject/UnrealType.h"
+
+// ─── Internal helpers ───────────────────────────────────────
+
+namespace TetherAssetOps
+{
+	/** Strip surrounding single quotes from export-text paths. */
+	void ParsePathToObjectPath(const FString& InPath, FString& OutObjectPath)
+	{
+		OutObjectPath = InPath.TrimStartAndEnd();
+		int32 QuoteStart = INDEX_NONE;
+		if (OutObjectPath.FindChar(TEXT('\''), QuoteStart))
+		{
+			int32 QuoteEnd = INDEX_NONE;
+			if (OutObjectPath.FindLastChar(TEXT('\''), QuoteEnd) && QuoteEnd > QuoteStart)
+			{
+				OutObjectPath = OutObjectPath.Mid(QuoteStart + 1, QuoteEnd - QuoteStart - 1);
+			}
+		}
+	}
+
+	/** Resolve a Blueprint asset path to its GeneratedClass. */
+	UClass* ResolveBlueprintPathToClass(const FString& BlueprintClassPath)
+	{
+		FString ObjectPath;
+		ParsePathToObjectPath(BlueprintClassPath, ObjectPath);
+
+		UClass* BaseClass = nullptr;
+		UBlueprint* LoadedBP = Cast<UBlueprint>(StaticLoadObject(UBlueprint::StaticClass(), nullptr, *ObjectPath));
+		if (LoadedBP && LoadedBP->GeneratedClass)
+		{
+			BaseClass = LoadedBP->GeneratedClass;
+		}
+		if (!BaseClass)
+		{
+			BaseClass = FindObject<UClass>(nullptr, *ObjectPath);
+		}
+		if (!BaseClass && !ObjectPath.EndsWith(TEXT("_C")))
+		{
+			BaseClass = FindObject<UClass>(nullptr, *(ObjectPath + TEXT("_C")));
+		}
+		if (!BaseClass && !ObjectPath.EndsWith(TEXT("_C")))
+		{
+			BaseClass = LoadObject<UClass>(nullptr, *(ObjectPath + TEXT("_C")));
+		}
+		return BaseClass;
+	}
+
+	/** Convert an FAssetIdentifier to FSoftObjectPath. */
+	FSoftObjectPath ConvertAssetIdentifierToSoftObjectPath(const FAssetIdentifier& AssetIdentifier)
+	{
+		if (!AssetIdentifier.IsValid())
+		{
+			return FSoftObjectPath();
+		}
+		if (AssetIdentifier.PrimaryAssetType.IsValid())
+		{
+			return FSoftObjectPath(AssetIdentifier.ToString());
+		}
+		if (AssetIdentifier.IsPackage())
+		{
+			const FString PackageStr = AssetIdentifier.PackageName.ToString();
+			const FString ShortName = FPackageName::GetShortName(AssetIdentifier.PackageName);
+			return FSoftObjectPath(FString::Printf(TEXT("%s.%s"), *PackageStr, *ShortName));
+		}
+		return FSoftObjectPath(AssetIdentifier.ToString());
+	}
+
+	/** Gather derived class paths from AssetRegistry, skipping SKEL_/REINST_. */
+	void GatherDerivedClassPaths(
+		const TArray<UClass*>& BaseClasses,
+		const TSet<UClass*>& ExcludedClasses,
+		TSet<FTopLevelAssetPath>& OutDerivedClassPaths)
+	{
+		IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+
+		TArray<FTopLevelAssetPath> BaseClassPaths;
+		for (const UClass* C : BaseClasses)
+		{
+			if (C) BaseClassPaths.Emplace(C->GetClassPathName());
+		}
+
+		TSet<FTopLevelAssetPath> ExcludedClassPaths;
+		for (const UClass* C : ExcludedClasses)
+		{
+			if (C) ExcludedClassPaths.Emplace(C->GetClassPathName());
+		}
+
+		TSet<FTopLevelAssetPath> DerivedClassPaths;
+		AssetRegistry.GetDerivedClassNames(BaseClassPaths, ExcludedClassPaths, DerivedClassPaths);
+
+		for (const FTopLevelAssetPath& Path : DerivedClassPaths)
+		{
+			FString AssetName = Path.GetAssetName().ToString();
+			if (!AssetName.StartsWith(TEXT("SKEL_")) && !AssetName.StartsWith(TEXT("REINST_")))
+			{
+				OutDerivedClassPaths.Add(Path);
+			}
+		}
+	}
+
+	/** Normalize a content root path (trim, strip trailing slashes, ensure leading /). */
+	void NormalizeContentRoot(FString& Path)
+	{
+		Path.TrimStartAndEndInline();
+		while (Path.Len() > 1 && Path.EndsWith(TEXT("/")))
+		{
+			Path.LeftChopInline(1);
+		}
+		if (!Path.IsEmpty() && !Path.StartsWith(TEXT("/")))
+		{
+			Path = TEXT("/") + Path;
+		}
+	}
+} // namespace TetherAssetOps
+
+// ─── Search query parser ────────────────────────────────────
+
+namespace TetherAssetSearch
+{
+	struct FParsedQuery
+	{
+		TArray<FString> IncludeTokens;
+		TArray<FString> ExcludeTokens;
+		FString TypeFilter;
+	};
+
+	static bool ParseQuery(const FString& Query, FParsedQuery& OutParsed)
+	{
+		OutParsed.IncludeTokens.Reset();
+		OutParsed.ExcludeTokens.Reset();
+		OutParsed.TypeFilter.Reset();
+
+		FString Trimmed = Query.TrimStartAndEnd();
+		TArray<FString> Tokens;
+		Trimmed.ParseIntoArray(Tokens, TEXT(" "), true);
+
+		for (FString& Token : Tokens)
+		{
+			Token.TrimStartAndEndInline();
+			if (Token.IsEmpty()) continue;
+
+			if (Token.StartsWith(TEXT("!")))
+			{
+				FString Exclude = Token.Mid(1).TrimStartAndEnd();
+				if (!Exclude.IsEmpty())
+					OutParsed.ExcludeTokens.Add(MoveTemp(Exclude));
+			}
+			else if (Token.StartsWith(TEXT("&Type="), ESearchCase::IgnoreCase))
+			{
+				OutParsed.TypeFilter = Token.Mid(6).TrimStartAndEnd();
+			}
+			else
+			{
+				OutParsed.IncludeTokens.Add(MoveTemp(Token));
+			}
+		}
+
+		return OutParsed.IncludeTokens.Num() > 0 || !OutParsed.TypeFilter.IsEmpty();
+	}
+
+	static bool MatchesQuery(const FString& AssetName, const FString& Q, bool bCaseSensitive, bool bWholeWord)
+	{
+		FString Name = AssetName;
+		FString Query = Q;
+		if (!bCaseSensitive)
+		{
+			Name.ToLowerInline();
+			Query.ToLowerInline();
+		}
+		if (bWholeWord)
+		{
+			int32 Idx = 0;
+			while (Idx < Name.Len())
+			{
+				Idx = Name.Find(Query, ESearchCase::IgnoreCase, ESearchDir::FromStart, Idx);
+				if (Idx == INDEX_NONE) return false;
+				bool StartOK = (Idx == 0) || !FChar::IsAlnum(Name[Idx - 1]);
+				bool EndOK = (Idx + Query.Len() >= Name.Len()) || !FChar::IsAlnum(Name[Idx + Query.Len()]);
+				if (StartOK && EndOK) return true;
+				Idx++;
+			}
+			return false;
+		}
+		return Name.Contains(Query);
+	}
+
+	static bool MatchesParsedQuery(const FString& AssetName, const FParsedQuery& Parsed, bool bCaseSensitive, bool bWholeWord)
+	{
+		for (const FString& Token : Parsed.IncludeTokens)
+		{
+			if (!Token.IsEmpty() && !MatchesQuery(AssetName, Token, bCaseSensitive, bWholeWord))
+				return false;
+		}
+		for (const FString& Token : Parsed.ExcludeTokens)
+		{
+			if (!Token.IsEmpty() && MatchesQuery(AssetName, Token, bCaseSensitive, bWholeWord))
+				return false;
+		}
+		return true;
+	}
+
+	static bool MatchesTypeFilter(const FAssetData& Data, const FString& TypeFilter)
+	{
+		if (TypeFilter.IsEmpty()) return true;
+		FString ClassName = Data.AssetClassPath.GetAssetName().ToString();
+		return ClassName.Contains(TypeFilter, ESearchCase::IgnoreCase);
+	}
+
+	static void SearchAssetsInternal(
+		IAssetRegistry& Registry,
+		const FParsedQuery& Parsed,
+		ETetherAssetSearchScope Scope,
+		const FString& InCustomPackagePath,
+		const FString& ClassFilter,
+		bool bCaseSensitive, bool bWholeWord,
+		int32 MaxResults,
+		TArray<FAssetData>& OutResults)
+	{
+		FARFilter Filter;
+		Filter.bRecursivePaths = true;
+
+		switch (Scope)
+		{
+		case ETetherAssetSearchScope::AllAssets:
+		{
+			TArray<FString> RootPaths;
+			FPackageName::QueryRootContentPaths(RootPaths, false, false, true);
+			for (const FString& Root : RootPaths)
+			{
+				FString Path = Root;
+				if (!Path.StartsWith(TEXT("/"))) Path = TEXT("/") + Path;
+				if (!Path.IsEmpty()) Filter.PackagePaths.Add(FName(*Path));
+			}
+			if (Filter.PackagePaths.Num() == 0)
+			{
+				Filter.PackagePaths.Add(FName("/Game"));
+				Filter.PackagePaths.Add(FName("/Engine"));
+			}
+			break;
+		}
+		case ETetherAssetSearchScope::Project:
+			Filter.PackagePaths.Add(FName("/Game"));
+			break;
+		case ETetherAssetSearchScope::CustomPackagePath:
+		{
+			FString Path = InCustomPackagePath;
+			TetherAssetOps::NormalizeContentRoot(Path);
+			Filter.PackagePaths.Add(FName(Path.IsEmpty() ? TEXT("/Game") : *Path));
+			break;
+		}
+		}
+
+		if (!ClassFilter.IsEmpty() && ClassFilter != TEXT("*") && ClassFilter.StartsWith(TEXT("/Script/")))
+		{
+			Filter.ClassPaths.Add(FTopLevelAssetPath(ClassFilter));
+			Filter.bRecursiveClasses = true;
+		}
+
+		TArray<FAssetData> AllCandidates;
+		Registry.GetAssets(Filter, AllCandidates);
+
+		for (const FAssetData& Data : AllCandidates)
+		{
+			if (OutResults.Num() >= MaxResults) break;
+			FString AssetName = Data.AssetName.ToString();
+			if (!MatchesParsedQuery(AssetName, Parsed, bCaseSensitive, bWholeWord)) continue;
+			if (!MatchesTypeFilter(Data, Parsed.TypeFilter)) continue;
+			OutResults.Add(Data);
+		}
+	}
+} // namespace TetherAssetSearch
+
+// ═══════════════════════════════════════════════════════════
+//  Asset Search
+// ═══════════════════════════════════════════════════════════
+
+void UTetherAssetLibrary::SearchAssets(
+	const FString& Query, ETetherAssetSearchScope Scope, const FString& ClassFilter,
+	bool bCaseSensitive, bool bWholeWord, int32 MaxResults, int32 MinCharacters,
+	const FString& CustomPackagePath,
+	TArray<FSoftObjectPath>& OutSoftPaths, TArray<FString>& OutIncludeTokensForHighlight)
+{
+	OutSoftPaths.Reset();
+	OutIncludeTokensForHighlight.Reset();
+
+	TetherAssetSearch::FParsedQuery Parsed;
+	if (!TetherAssetSearch::ParseQuery(Query.TrimStartAndEnd(), Parsed)) return;
+	if (Parsed.IncludeTokens.Num() == 0 && Parsed.TypeFilter.IsEmpty()) return;
+
+	if (Parsed.IncludeTokens.Num() > 0)
+	{
+		int32 MinLen = Parsed.IncludeTokens[0].Len();
+		for (const FString& T : Parsed.IncludeTokens)
+			if (T.Len() < MinLen) MinLen = T.Len();
+		if (MinLen < MinCharacters) return;
+	}
+
+	OutIncludeTokensForHighlight = Parsed.IncludeTokens;
+
+	IAssetRegistry& Registry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+	TArray<FAssetData> Results;
+	TetherAssetSearch::SearchAssetsInternal(Registry, Parsed, Scope, CustomPackagePath, ClassFilter, bCaseSensitive, bWholeWord, MaxResults, Results);
+
+	OutSoftPaths.Reserve(Results.Num());
+	for (const FAssetData& Data : Results)
+		OutSoftPaths.Add(Data.GetSoftObjectPath());
+}
+
+void UTetherAssetLibrary::SearchAssetsInAllContent(
+	const FString& Query, int32 MaxResults,
+	TArray<FSoftObjectPath>& OutSoftPaths, TArray<FString>& OutIncludeTokensForHighlight)
+{
+	SearchAssets(Query, ETetherAssetSearchScope::AllAssets, FString(),
+		false, false, MaxResults, 1, FString(),
+		OutSoftPaths, OutIncludeTokensForHighlight);
+}
+
+void UTetherAssetLibrary::SearchAssetsUnderPath(
+	const FString& ContentFolderPath, const FString& Query, int32 MaxResults,
+	TArray<FSoftObjectPath>& OutSoftPaths, TArray<FString>& OutIncludeTokensForHighlight)
+{
+	OutSoftPaths.Reset();
+	OutIncludeTokensForHighlight.Reset();
+	if (ContentFolderPath.TrimStartAndEnd().IsEmpty()) return;
+
+	SearchAssets(Query, ETetherAssetSearchScope::CustomPackagePath, FString(),
+		false, false, MaxResults, 1, ContentFolderPath,
+		OutSoftPaths, OutIncludeTokensForHighlight);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Derived Classes
+// ═══════════════════════════════════════════════════════════
+
+void UTetherAssetLibrary::GetDerivedClasses(
+	const TArray<UClass*>& BaseClasses, const TSet<UClass*>& ExcludedClasses,
+	TSet<UClass*>& OutDerivedClasses)
+{
+	auto ShouldSkip = [](const UClass* InClass)
+	{
+		constexpr EClassFlags InvalidFlags = CLASS_Hidden | CLASS_HideDropDown | CLASS_Deprecated | CLASS_Abstract | CLASS_NewerVersionExists;
+		return InClass->HasAnyClassFlags(InvalidFlags)
+			|| InClass->GetName().StartsWith(TEXT("SKEL_"))
+			|| InClass->GetName().StartsWith(TEXT("REINST_"));
+	};
+	GetDerivedClassesWithFilter(BaseClasses, ExcludedClasses, OutDerivedClasses, ShouldSkip);
+}
+
+void UTetherAssetLibrary::GetDerivedClassesWithFilter(
+	const TArray<UClass*>& BaseClasses, const TSet<UClass*>& ExcludedClasses,
+	TSet<UClass*>& OutDerivedClasses, TFunction<bool(const UClass*)> ShouldSkipClassFilter)
+{
+	TSet<FTopLevelAssetPath> DerivedClassPaths;
+	TetherAssetOps::GatherDerivedClassPaths(BaseClasses, ExcludedClasses, DerivedClassPaths);
+
+	for (const FTopLevelAssetPath& Path : DerivedClassPaths)
+	{
+		UClass* Class = FindObject<UClass>(nullptr, *Path.ToString());
+		if (!Class)
+		{
+			FString AssetPath = Path.ToString();
+			if (AssetPath.EndsWith(TEXT("_C")))
+			{
+				AssetPath.LeftChopInline(2);
+				UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *AssetPath);
+				if (Blueprint && Blueprint->GeneratedClass)
+					Class = Blueprint->GeneratedClass;
+			}
+		}
+
+		if (Class && !ShouldSkipClassFilter(Class))
+		{
+			OutDerivedClasses.Add(Class);
+		}
+	}
+}
+
+void UTetherAssetLibrary::GetDerivedClassesByBlueprintPath(
+	const FString& BlueprintClassPath, TArray<UClass*>& OutDerivedClasses)
+{
+	OutDerivedClasses.Reset();
+	UClass* BaseClass = TetherAssetOps::ResolveBlueprintPathToClass(BlueprintClassPath);
+	if (!BaseClass) return;
+
+	TArray<UClass*> BaseArr;
+	BaseArr.Add(BaseClass);
+	TSet<UClass*> DerivedSet;
+	auto ShouldSkip = [](const UClass* InClass)
+	{
+		constexpr EClassFlags InvalidFlags = CLASS_Hidden | CLASS_HideDropDown | CLASS_Deprecated | CLASS_Abstract | CLASS_NewerVersionExists;
+		return InClass->HasAnyClassFlags(InvalidFlags)
+			|| InClass->GetName().StartsWith(TEXT("SKEL_"))
+			|| InClass->GetName().StartsWith(TEXT("REINST_"));
+	};
+	GetDerivedClassesWithFilter(BaseArr, TSet<UClass*>(), DerivedSet, ShouldSkip);
+
+	for (UClass* C : DerivedSet)
+		OutDerivedClasses.Add(C);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Asset References
+// ═══════════════════════════════════════════════════════════
+
+void UTetherAssetLibrary::GetAssetReferences(
+	const FString& AssetPath,
+	TArray<FSoftObjectPath>& OutDependencies, TArray<FSoftObjectPath>& OutReferencers)
+{
+	OutDependencies.Reset();
+	OutReferencers.Reset();
+
+	FString ObjectPath;
+	TetherAssetOps::ParsePathToObjectPath(AssetPath, ObjectPath);
+
+	FSoftObjectPath SoftPath(ObjectPath);
+	if (!SoftPath.IsValid()) return;
+
+	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+	const FAssetData AssetData = AssetRegistry.GetAssetByObjectPath(SoftPath);
+	if (!AssetData.IsValid()) return;
+
+	FAssetIdentifier GraphId(AssetData.PackageName);
+
+	TArray<FAssetIdentifier> Dependencies;
+	TArray<FAssetIdentifier> Referencers;
+	if (!AssetRegistry.GetDependencies(GraphId, Dependencies, UE::AssetRegistry::EDependencyCategory::All, UE::AssetRegistry::FDependencyQuery()))
+	{
+		GraphId = FAssetIdentifier(AssetData.PackageName, AssetData.AssetName);
+		AssetRegistry.GetDependencies(GraphId, Dependencies, UE::AssetRegistry::EDependencyCategory::All, UE::AssetRegistry::FDependencyQuery());
+	}
+	AssetRegistry.GetReferencers(GraphId, Referencers, UE::AssetRegistry::EDependencyCategory::All, UE::AssetRegistry::FDependencyQuery());
+
+	TSet<FSoftObjectPath> SeenDeps, SeenRefs;
+	for (const FAssetIdentifier& Id : Dependencies)
+	{
+		FSoftObjectPath SP = TetherAssetOps::ConvertAssetIdentifierToSoftObjectPath(Id);
+		if (SP.IsValid() && !SeenDeps.Contains(SP))
+		{
+			SeenDeps.Add(SP);
+			OutDependencies.Add(SP);
+		}
+	}
+	for (const FAssetIdentifier& Id : Referencers)
+	{
+		FSoftObjectPath SP = TetherAssetOps::ConvertAssetIdentifierToSoftObjectPath(Id);
+		if (SP.IsValid() && !SeenRefs.Contains(SP))
+		{
+			SeenRefs.Add(SP);
+			OutReferencers.Add(SP);
+		}
+	}
+}
+
+// ═══════════════════════════════════════════════════════════
+//  DataAsset Queries
+// ═══════════════════════════════════════════════════════════
+
+void UTetherAssetLibrary::GetDataAssetsByBaseClass(
+	TSubclassOf<UDataAsset> BaseDataAssetClass, TArray<FAssetData>& OutAssetDatas)
+{
+	OutAssetDatas.Reset();
+	UClass* BaseClass = BaseDataAssetClass.Get();
+	if (!BaseClass || !BaseClass->IsChildOf(UDataAsset::StaticClass())) return;
+
+	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+	FARFilter Filter;
+	Filter.ClassPaths.Add(BaseClass->GetClassPathName());
+	Filter.bRecursiveClasses = true;
+	AssetRegistry.GetAssets(Filter, OutAssetDatas);
+}
+
+void UTetherAssetLibrary::GetDataAssetsByAssetPath(
+	const FString& DataAssetPath, TArray<FAssetData>& OutAssetDatas)
+{
+	OutAssetDatas.Reset();
+
+	FString ObjectPath;
+	TetherAssetOps::ParsePathToObjectPath(DataAssetPath, ObjectPath);
+
+	UClass* BaseClass = nullptr;
+	UBlueprint* LoadedBP = Cast<UBlueprint>(StaticLoadObject(UBlueprint::StaticClass(), nullptr, *ObjectPath));
+	if (LoadedBP && LoadedBP->GeneratedClass && LoadedBP->GeneratedClass->IsChildOf(UDataAsset::StaticClass()))
+	{
+		BaseClass = LoadedBP->GeneratedClass;
+	}
+	if (!BaseClass)
+	{
+		UDataAsset* LoadedDA = Cast<UDataAsset>(StaticLoadObject(UDataAsset::StaticClass(), nullptr, *ObjectPath));
+		if (LoadedDA) BaseClass = LoadedDA->GetClass();
+	}
+
+	if (BaseClass) GetDataAssetsByBaseClass(BaseClass, OutAssetDatas);
+}
+
+void UTetherAssetLibrary::GetDataAssetSoftPathsByBaseClass(
+	TSubclassOf<UDataAsset> BaseDataAssetClass, TArray<FSoftObjectPath>& OutSoftPaths)
+{
+	OutSoftPaths.Reset();
+	TArray<FAssetData> AssetDatas;
+	GetDataAssetsByBaseClass(BaseDataAssetClass, AssetDatas);
+	for (const FAssetData& Data : AssetDatas)
+		OutSoftPaths.Add(Data.GetSoftObjectPath());
+}
+
+void UTetherAssetLibrary::GetDataAssetSoftPathsByAssetPath(
+	const FString& DataAssetPath, TArray<FSoftObjectPath>& OutSoftPaths)
+{
+	OutSoftPaths.Reset();
+
+	FString ObjectPath;
+	TetherAssetOps::ParsePathToObjectPath(DataAssetPath, ObjectPath);
+
+	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+	const FAssetData AssetData = AssetRegistry.GetAssetByObjectPath(FSoftObjectPath(ObjectPath));
+	if (!AssetData.IsValid()) return;
+
+	FTopLevelAssetPath BaseClassPath;
+	FString GeneratedClassPathStr;
+	if (AssetData.GetTagValue(FName("GeneratedClass"), GeneratedClassPathStr) && !GeneratedClassPathStr.IsEmpty())
+	{
+		BaseClassPath = FTopLevelAssetPath(GeneratedClassPathStr);
+	}
+	else
+	{
+		BaseClassPath = AssetData.AssetClassPath;
+	}
+	if (!BaseClassPath.IsValid()) return;
+
+	FARFilter Filter;
+	Filter.ClassPaths.Add(BaseClassPath);
+	Filter.bRecursiveClasses = true;
+	TArray<FAssetData> AssetDatas;
+	AssetRegistry.GetAssets(Filter, AssetDatas);
+
+	for (const FAssetData& Data : AssetDatas)
+		OutSoftPaths.Add(Data.GetSoftObjectPath());
+}
+
+FTetherDataAssetCreateResult UTetherAssetLibrary::CreateDataAsset(
+	const FString& AssetPath,
+	const FString& DataAssetClassPath,
+	const bool bSave)
+{
+	FTetherDataAssetCreateResult Out;
+
+	FString PackageName;
+	TetherAssetOps::ParsePathToObjectPath(AssetPath, PackageName);
+	PackageName.TrimStartAndEndInline();
+	int32 ObjectSeparator = INDEX_NONE;
+	if (PackageName.FindLastChar(TEXT('.'), ObjectSeparator))
+	{
+		PackageName.LeftInline(ObjectSeparator);
+	}
+
+	FText PackageError;
+	if (!FPackageName::IsValidLongPackageName(PackageName, true, &PackageError))
+	{
+		Out.Error = FString::Printf(
+			TEXT("asset_path '%s' is not a valid mounted content package: %s"),
+			*AssetPath,
+			*PackageError.ToString());
+		return Out;
+	}
+	if (PackageName.StartsWith(TEXT("/Engine/"), ESearchCase::IgnoreCase)
+		|| PackageName.StartsWith(TEXT("/Script/"), ESearchCase::IgnoreCase))
+	{
+		Out.Error = TEXT("asset_path must target project or plugin content; /Engine and /Script are read-only through this API");
+		return Out;
+	}
+	if (DoesAssetExist(PackageName))
+	{
+		Out.Error = FString::Printf(
+			TEXT("asset '%s' already exists; CreateDataAsset never overwrites existing content"),
+			*PackageName);
+		return Out;
+	}
+
+	FString ClassObjectPath;
+	TetherAssetOps::ParsePathToObjectPath(DataAssetClassPath, ClassObjectPath);
+	UClass* DataAssetClass = TetherAssetOps::ResolveBlueprintPathToClass(ClassObjectPath);
+	if (!DataAssetClass)
+	{
+		DataAssetClass = LoadObject<UClass>(nullptr, *ClassObjectPath);
+	}
+	if (!DataAssetClass || !DataAssetClass->IsChildOf(UDataAsset::StaticClass()))
+	{
+		Out.Error = FString::Printf(
+			TEXT("data_asset_class_path '%s' does not resolve to a UDataAsset subclass"),
+			*DataAssetClassPath);
+		return Out;
+	}
+	if (DataAssetClass->HasAnyClassFlags(
+		CLASS_Abstract | CLASS_Deprecated | CLASS_NewerVersionExists))
+	{
+		Out.Error = FString::Printf(
+			TEXT("DataAsset class '%s' cannot be instantiated because it is abstract, deprecated, or superseded"),
+			*DataAssetClass->GetPathName());
+		return Out;
+	}
+	Out.ClassPath = DataAssetClass->GetPathName();
+
+	const FString AssetName = FPackageName::GetLongPackageAssetName(PackageName);
+	const FString PackagePath = FPackageName::GetLongPackagePath(PackageName);
+	if (AssetName.IsEmpty() || PackagePath.IsEmpty())
+	{
+		Out.Error = FString::Printf(
+			TEXT("asset_path '%s' must include both a mounted folder and an asset name"),
+			*AssetPath);
+		return Out;
+	}
+
+	UDataAssetFactory* Factory = NewObject<UDataAssetFactory>();
+	Factory->DataAssetClass = DataAssetClass;
+	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>(TEXT("AssetTools")).Get();
+	FScopedTransaction Transaction(NSLOCTEXT(
+		"TetherAsset", "CreateDataAsset", "Tether: Create Data Asset"));
+	UObject* CreatedAsset = AssetTools.CreateAsset(AssetName, PackagePath, DataAssetClass, Factory);
+	if (!CreatedAsset)
+	{
+		Transaction.Cancel();
+		Out.Error = FString::Printf(
+			TEXT("AssetTools could not create '%s' from class '%s'"),
+			*PackageName,
+			*DataAssetClass->GetPathName());
+		return Out;
+	}
+
+	Out.bCreated = true;
+	Out.AssetPath = CreatedAsset->GetPathName();
+	UPackage* Package = CreatedAsset->GetOutermost();
+	Out.bPackageDirty = Package && Package->IsDirty();
+	if (bSave)
+	{
+		TArray<UPackage*> Packages;
+		Packages.Add(Package);
+		if (!Package || !UEditorLoadingAndSavingUtils::SavePackages(Packages, false))
+		{
+			Out.Error = TEXT("DataAsset was created in memory but its package could not be saved; it remains dirty and undoable");
+			Out.bPackageDirty = Package && Package->IsDirty();
+			return Out;
+		}
+		Out.bSaved = true;
+	}
+
+	Out.bPackageDirty = Package && Package->IsDirty();
+	Out.bSuccess = true;
+	return Out;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Folder / Path Queries
+// ═══════════════════════════════════════════════════════════
+
+void UTetherAssetLibrary::ListAssetsUnderPath(
+	const FString& FolderPath, bool bIncludeSubfolders,
+	TArray<FSoftObjectPath>& OutSoftPaths)
+{
+	OutSoftPaths.Reset();
+	FString BasePath = FolderPath.TrimStartAndEnd();
+	if (BasePath.IsEmpty()) return;
+
+	TetherAssetOps::NormalizeContentRoot(BasePath);
+
+	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+	FARFilter Filter;
+	Filter.PackagePaths.Add(FName(*BasePath));
+	Filter.bRecursivePaths = bIncludeSubfolders;
+
+	TArray<FAssetData> AssetDatas;
+	AssetRegistry.GetAssets(Filter, AssetDatas);
+
+	OutSoftPaths.Reserve(AssetDatas.Num());
+	for (const FAssetData& Data : AssetDatas)
+		OutSoftPaths.Add(Data.GetSoftObjectPath());
+}
+
+void UTetherAssetLibrary::ListAssetsUnderPathSimple(
+	const FString& ContentFolderPath, TArray<FSoftObjectPath>& OutSoftPaths)
+{
+	ListAssetsUnderPath(ContentFolderPath, true, OutSoftPaths);
+}
+
+void UTetherAssetLibrary::GetSubFolderPaths(
+	const FString& FolderPath, TArray<FString>& OutSubFolderPaths)
+{
+	OutSubFolderPaths.Reset();
+	FString BasePath = FolderPath.TrimStartAndEnd();
+	if (BasePath.IsEmpty()) return;
+
+	TetherAssetOps::NormalizeContentRoot(BasePath);
+
+	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+	AssetRegistry.GetSubPaths(BasePath, OutSubFolderPaths, false);
+}
+
+void UTetherAssetLibrary::GetSubFolderNames(
+	const FName& FolderPath, TArray<FName>& OutSubFolderNames)
+{
+	OutSubFolderNames.Reset();
+	if (FolderPath.IsNone()) return;
+
+	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+	AssetRegistry.GetSubPaths(FolderPath, OutSubFolderNames, false);
+}
+
+// ─── Registry Metadata (no load) ────────────────────────────
+
+namespace TetherAssetOps
+{
+	/** Turn an input path (content path, object path, export-text) into a FSoftObjectPath usable by the registry. */
+	static FSoftObjectPath MakeSoftPath(const FString& InPath)
+	{
+		FString ObjectPath;
+		ParsePathToObjectPath(InPath, ObjectPath);
+		if (ObjectPath.IsEmpty())
+		{
+			return FSoftObjectPath();
+		}
+		// If no '.' separator, assume content path like "/Game/Foo/Bar" → "/Game/Foo/Bar.Bar"
+		if (!ObjectPath.Contains(TEXT(".")))
+		{
+			FString LeafName;
+			int32 SlashIdx;
+			if (ObjectPath.FindLastChar(TEXT('/'), SlashIdx))
+			{
+				LeafName = ObjectPath.Mid(SlashIdx + 1);
+				ObjectPath = ObjectPath + TEXT(".") + LeafName;
+			}
+		}
+		return FSoftObjectPath(ObjectPath);
+	}
+
+	/** Parse a TopLevelAssetPath from string, tolerating empty input. */
+	static bool TryParseTopLevelPath(const FString& InClassPath, FTopLevelAssetPath& Out)
+	{
+		if (InClassPath.IsEmpty()) return false;
+		FTopLevelAssetPath Parsed;
+		Parsed.TrySetPath(InClassPath);
+		if (Parsed.IsNull()) return false;
+		Out = Parsed;
+		return true;
+	}
+}
+
+bool UTetherAssetLibrary::DoesAssetExist(const FString& AssetPath)
+{
+	const FSoftObjectPath Soft = TetherAssetOps::MakeSoftPath(AssetPath);
+	if (Soft.IsNull()) return false;
+
+	IAssetRegistry& AR = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+	return AR.GetAssetByObjectPath(Soft).IsValid();
+}
+
+FTetherAssetInfo UTetherAssetLibrary::GetAssetInfo(const FString& AssetPath)
+{
+	FTetherAssetInfo Result;
+
+	const FSoftObjectPath Soft = TetherAssetOps::MakeSoftPath(AssetPath);
+	if (Soft.IsNull()) return Result;
+
+	IAssetRegistry& AR = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+	const FAssetData Data = AR.GetAssetByObjectPath(Soft);
+	if (!Data.IsValid()) return Result;
+
+	Result.bFound = true;
+	Result.PackageName = Data.PackageName.ToString();
+	Result.AssetName = Data.AssetName.ToString();
+	Result.ClassPath = Data.AssetClassPath.ToString();
+	Result.bIsRedirector = (Data.AssetClassPath == UObjectRedirector::StaticClass()->GetClassPathName());
+
+	FString Filename;
+	if (FPackageName::DoesPackageExist(Result.PackageName, &Filename))
+	{
+		const int64 Size = IFileManager::Get().FileSize(*Filename);
+		if (Size > 0) Result.DiskSize = Size;
+	}
+
+	for (const TPair<FName, FAssetTagValueRef>& Pair : Data.TagsAndValues)
+	{
+		FTetherAssetTag KV;
+		KV.Key = Pair.Key.ToString();
+		KV.Value = Pair.Value.AsString();
+		Result.Tags.Add(KV);
+	}
+
+	return Result;
+}
+
+void UTetherAssetLibrary::GetAssetsByClass(
+	const FString& ClassPath,
+	bool bSearchSubClasses,
+	TArray<FSoftObjectPath>& OutSoftPaths)
+{
+	OutSoftPaths.Reset();
+
+	FTopLevelAssetPath ClassTop;
+	if (!TetherAssetOps::TryParseTopLevelPath(ClassPath, ClassTop))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Tether: GetAssetsByClass invalid ClassPath '%s'"), *ClassPath);
+		return;
+	}
+
+	IAssetRegistry& AR = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+	TArray<FAssetData> Datas;
+	AR.GetAssetsByClass(ClassTop, Datas, bSearchSubClasses);
+
+	OutSoftPaths.Reserve(Datas.Num());
+	for (const FAssetData& D : Datas)
+	{
+		OutSoftPaths.Add(D.ToSoftObjectPath());
+	}
+}
+
+void UTetherAssetLibrary::GetAssetsByTagValue(
+	const FString& TagName,
+	const FString& TagValue,
+	const FString& OptionalClassPath,
+	TArray<FSoftObjectPath>& OutSoftPaths)
+{
+	OutSoftPaths.Reset();
+	if (TagName.IsEmpty()) return;
+
+	FARFilter Filter;
+	Filter.bRecursiveClasses = true;
+	Filter.TagsAndValues.Add(FName(*TagName), TagValue);
+
+	FTopLevelAssetPath ClassTop;
+	if (TetherAssetOps::TryParseTopLevelPath(OptionalClassPath, ClassTop))
+	{
+		Filter.ClassPaths.Add(ClassTop);
+	}
+
+	IAssetRegistry& AR = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+	TArray<FAssetData> Datas;
+	AR.GetAssets(Filter, Datas);
+
+	OutSoftPaths.Reserve(Datas.Num());
+	for (const FAssetData& D : Datas)
+	{
+		OutSoftPaths.Add(D.ToSoftObjectPath());
+	}
+}
+
+// ─── Cheap scalar / batch registry queries ──────────────────
+
+FString UTetherAssetLibrary::GetAssetClassPath(const FString& AssetPath)
+{
+	const FSoftObjectPath Soft = TetherAssetOps::MakeSoftPath(AssetPath);
+	if (Soft.IsNull()) return FString();
+
+	IAssetRegistry& AR = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+	const FAssetData Data = AR.GetAssetByObjectPath(Soft);
+	if (!Data.IsValid()) return FString();
+
+	return Data.AssetClassPath.ToString();
+}
+
+FString UTetherAssetLibrary::GetAssetTagValue(const FString& AssetPath, const FString& TagName)
+{
+	if (TagName.IsEmpty()) return FString();
+
+	const FSoftObjectPath Soft = TetherAssetOps::MakeSoftPath(AssetPath);
+	if (Soft.IsNull()) return FString();
+
+	IAssetRegistry& AR = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+	const FAssetData Data = AR.GetAssetByObjectPath(Soft);
+	if (!Data.IsValid()) return FString();
+
+	FString Value;
+	if (Data.GetTagValue(FName(*TagName), Value))
+	{
+		return Value;
+	}
+	return FString();
+}
+
+void UTetherAssetLibrary::GetAssetsByPackagePaths(
+	const TArray<FString>& FolderPaths,
+	const FString& ClassFilter,
+	bool bRecursive,
+	TArray<FSoftObjectPath>& OutSoftPaths)
+{
+	OutSoftPaths.Reset();
+	if (FolderPaths.Num() == 0) return;
+
+	FARFilter Filter;
+	Filter.bRecursivePaths = bRecursive;
+
+	for (const FString& Raw : FolderPaths)
+	{
+		FString Path = Raw.TrimStartAndEnd();
+		if (Path.IsEmpty()) continue;
+		TetherAssetOps::NormalizeContentRoot(Path);
+		Filter.PackagePaths.Add(FName(*Path));
+	}
+	if (Filter.PackagePaths.Num() == 0) return;
+
+	FTopLevelAssetPath ClassTop;
+	if (TetherAssetOps::TryParseTopLevelPath(ClassFilter, ClassTop))
+	{
+		Filter.ClassPaths.Add(ClassTop);
+		Filter.bRecursiveClasses = bRecursive;
+	}
+
+	IAssetRegistry& AR = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+	TArray<FAssetData> Datas;
+	AR.GetAssets(Filter, Datas);
+
+	OutSoftPaths.Reserve(Datas.Num());
+	for (const FAssetData& D : Datas)
+	{
+		OutSoftPaths.Add(D.GetSoftObjectPath());
+	}
+}
+
+void UTetherAssetLibrary::GetAssetsOfClasses(
+	const TArray<FString>& ClassPaths,
+	bool bSearchSubClasses,
+	TArray<FSoftObjectPath>& OutSoftPaths)
+{
+	OutSoftPaths.Reset();
+	if (ClassPaths.Num() == 0) return;
+
+	FARFilter Filter;
+	Filter.bRecursiveClasses = bSearchSubClasses;
+	for (const FString& CP : ClassPaths)
+	{
+		FTopLevelAssetPath Top;
+		if (TetherAssetOps::TryParseTopLevelPath(CP, Top))
+		{
+			Filter.ClassPaths.Add(Top);
+		}
+	}
+	if (Filter.ClassPaths.Num() == 0) return;
+
+	IAssetRegistry& AR = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+	TArray<FAssetData> Datas;
+	AR.GetAssets(Filter, Datas);
+
+	OutSoftPaths.Reserve(Datas.Num());
+	for (const FAssetData& D : Datas)
+	{
+		OutSoftPaths.Add(D.GetSoftObjectPath());
+	}
+}
+
+void UTetherAssetLibrary::FindRedirectorsUnderPath(
+	const FString& FolderPath,
+	bool bRecursive,
+	TArray<FSoftObjectPath>& OutSoftPaths)
+{
+	OutSoftPaths.Reset();
+	FString BasePath = FolderPath.TrimStartAndEnd();
+	if (BasePath.IsEmpty()) return;
+	TetherAssetOps::NormalizeContentRoot(BasePath);
+
+	FARFilter Filter;
+	Filter.PackagePaths.Add(FName(*BasePath));
+	Filter.bRecursivePaths = bRecursive;
+	Filter.ClassPaths.Add(UObjectRedirector::StaticClass()->GetClassPathName());
+
+	IAssetRegistry& AR = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+	TArray<FAssetData> Datas;
+	AR.GetAssets(Filter, Datas);
+
+	OutSoftPaths.Reserve(Datas.Num());
+	for (const FAssetData& D : Datas)
+	{
+		OutSoftPaths.Add(D.GetSoftObjectPath());
+	}
+}
+
+FString UTetherAssetLibrary::ResolveRedirector(const FString& AssetPath)
+{
+	const FSoftObjectPath Soft = TetherAssetOps::MakeSoftPath(AssetPath);
+	if (Soft.IsNull()) return FString();
+
+	UObjectRedirector* Redirector = LoadObject<UObjectRedirector>(nullptr, *Soft.ToString());
+	if (!Redirector || !Redirector->DestinationObject)
+	{
+		return FString();
+	}
+	return Redirector->DestinationObject->GetPathName();
+}
+
+// ─── Cheap counts & batched per-asset queries ───────────────
+
+int32 UTetherAssetLibrary::GetAssetCountUnderPath(
+	const FString& FolderPath,
+	const FString& ClassFilter,
+	bool bRecursive)
+{
+	FString BasePath = FolderPath.TrimStartAndEnd();
+	if (BasePath.IsEmpty()) return 0;
+	TetherAssetOps::NormalizeContentRoot(BasePath);
+
+	FARFilter Filter;
+	Filter.PackagePaths.Add(FName(*BasePath));
+	Filter.bRecursivePaths = bRecursive;
+
+	FTopLevelAssetPath ClassTop;
+	if (TetherAssetOps::TryParseTopLevelPath(ClassFilter, ClassTop))
+	{
+		Filter.ClassPaths.Add(ClassTop);
+		Filter.bRecursiveClasses = bRecursive;
+	}
+
+	IAssetRegistry& AR = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+	TArray<FAssetData> Datas;
+	AR.GetAssets(Filter, Datas);
+	return Datas.Num();
+}
+
+namespace TetherAssetOps
+{
+	static void GatherPackageLinks(
+		const FString& PackageName,
+		bool bHardOnly,
+		bool bReferencers,
+		TArray<FString>& OutPackageNames)
+	{
+		OutPackageNames.Reset();
+
+		FString Trimmed = PackageName.TrimStartAndEnd();
+		if (Trimmed.IsEmpty()) return;
+		// If caller passed an object path "/Game/Foo/Bar.Bar", strip to package.
+		int32 DotIdx;
+		if (Trimmed.FindChar(TEXT('.'), DotIdx))
+		{
+			Trimmed = Trimmed.Left(DotIdx);
+		}
+		if (!Trimmed.StartsWith(TEXT("/"))) Trimmed = TEXT("/") + Trimmed;
+
+		IAssetRegistry& AR = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+		const FName PkgName(*Trimmed);
+
+		UE::AssetRegistry::FDependencyQuery Query;
+		if (bHardOnly)
+		{
+			Query.Required = UE::AssetRegistry::EDependencyProperty::Hard | UE::AssetRegistry::EDependencyProperty::Game;
+		}
+
+		TArray<FName> Links;
+		if (bReferencers)
+		{
+			AR.GetReferencers(PkgName, Links, UE::AssetRegistry::EDependencyCategory::Package, Query);
+		}
+		else
+		{
+			AR.GetDependencies(PkgName, Links, UE::AssetRegistry::EDependencyCategory::Package, Query);
+		}
+
+		OutPackageNames.Reserve(Links.Num());
+		for (const FName& L : Links)
+		{
+			OutPackageNames.Add(L.ToString());
+		}
+	}
+}
+
+void UTetherAssetLibrary::GetPackageDependencies(
+	const FString& PackageName,
+	bool bHardOnly,
+	TArray<FString>& OutDependencyPackageNames)
+{
+	TetherAssetOps::GatherPackageLinks(PackageName, bHardOnly, /*bReferencers=*/false, OutDependencyPackageNames);
+}
+
+void UTetherAssetLibrary::GetPackageReferencers(
+	const FString& PackageName,
+	bool bHardOnly,
+	TArray<FString>& OutReferencerPackageNames)
+{
+	TetherAssetOps::GatherPackageLinks(PackageName, bHardOnly, /*bReferencers=*/true, OutReferencerPackageNames);
+}
+
+void UTetherAssetLibrary::GetAssetTagValuesBatch(
+	const TArray<FString>& AssetPaths,
+	const FString& TagName,
+	TArray<FString>& OutValues)
+{
+	OutValues.Reset();
+	OutValues.SetNum(AssetPaths.Num());
+	if (AssetPaths.Num() == 0 || TagName.IsEmpty()) return;
+
+	IAssetRegistry& AR = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+	const FName TagFName(*TagName);
+
+	for (int32 Idx = 0; Idx < AssetPaths.Num(); ++Idx)
+	{
+		const FSoftObjectPath Soft = TetherAssetOps::MakeSoftPath(AssetPaths[Idx]);
+		if (Soft.IsNull()) continue;
+
+		const FAssetData Data = AR.GetAssetByObjectPath(Soft);
+		if (!Data.IsValid()) continue;
+
+		FString Value;
+		if (Data.GetTagValue(TagFName, Value))
+		{
+			OutValues[Idx] = MoveTemp(Value);
+		}
+	}
+}
+
+void UTetherAssetLibrary::GetAssetDiskSizesBatch(
+	const TArray<FString>& AssetPaths,
+	TArray<int64>& OutSizes)
+{
+	OutSizes.Reset();
+	OutSizes.Init(-1, AssetPaths.Num());
+	if (AssetPaths.Num() == 0) return;
+
+	IAssetRegistry& AR = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+
+	for (int32 Idx = 0; Idx < AssetPaths.Num(); ++Idx)
+	{
+		const FSoftObjectPath Soft = TetherAssetOps::MakeSoftPath(AssetPaths[Idx]);
+		if (Soft.IsNull()) continue;
+
+		const FAssetData Data = AR.GetAssetByObjectPath(Soft);
+		if (!Data.IsValid()) continue;
+
+		FString Filename;
+		if (FPackageName::DoesPackageExist(Data.PackageName.ToString(), &Filename))
+		{
+			const int64 Size = IFileManager::Get().FileSize(*Filename);
+			if (Size > 0) OutSizes[Idx] = Size;
+		}
+	}
+}
+
+// ─── Structural / aggregate helpers ─────────────────────────
+
+void UTetherAssetLibrary::GetContentRoots(TArray<FString>& OutRoots)
+{
+	OutRoots.Reset();
+	FPackageName::QueryRootContentPaths(OutRoots, /*bIncludeReadOnlyRoots=*/false, /*bWithoutLeadingSlashes=*/false, /*bWithoutTrailingSlashes=*/false);
+}
+
+bool UTetherAssetLibrary::DoesFolderExist(const FString& FolderPath)
+{
+	FString BasePath = FolderPath.TrimStartAndEnd();
+	if (BasePath.IsEmpty()) return false;
+	TetherAssetOps::NormalizeContentRoot(BasePath);
+
+	IAssetRegistry& AR = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+	return AR.HasAssets(FName(*BasePath), /*bRecursive=*/true);
+}
+
+int64 UTetherAssetLibrary::GetTotalDiskSizeUnderPath(
+	const FString& FolderPath,
+	const FString& ClassFilter,
+	bool bRecursive,
+	int32& OutAssetCount)
+{
+	OutAssetCount = 0;
+	FString BasePath = FolderPath.TrimStartAndEnd();
+	if (BasePath.IsEmpty()) return 0;
+	TetherAssetOps::NormalizeContentRoot(BasePath);
+
+	FARFilter Filter;
+	Filter.PackagePaths.Add(FName(*BasePath));
+	Filter.bRecursivePaths = bRecursive;
+
+	FTopLevelAssetPath ClassTop;
+	if (TetherAssetOps::TryParseTopLevelPath(ClassFilter, ClassTop))
+	{
+		Filter.ClassPaths.Add(ClassTop);
+		Filter.bRecursiveClasses = bRecursive;
+	}
+
+	IAssetRegistry& AR = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+	TArray<FAssetData> Datas;
+	AR.GetAssets(Filter, Datas);
+
+	int64 Total = 0;
+	IFileManager& FM = IFileManager::Get();
+	for (const FAssetData& D : Datas)
+	{
+		FString Filename;
+		if (FPackageName::DoesPackageExist(D.PackageName.ToString(), &Filename))
+		{
+			const int64 Size = FM.FileSize(*Filename);
+			if (Size > 0)
+			{
+				Total += Size;
+				++OutAssetCount;
+			}
+		}
+	}
+	return Total;
+}
+
+void UTetherAssetLibrary::GetAssetClassPathsBatch(
+	const TArray<FString>& AssetPaths,
+	TArray<FString>& OutClassPaths)
+{
+	OutClassPaths.Reset();
+	OutClassPaths.SetNum(AssetPaths.Num());
+	if (AssetPaths.Num() == 0) return;
+
+	IAssetRegistry& AR = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+
+	for (int32 Idx = 0; Idx < AssetPaths.Num(); ++Idx)
+	{
+		const FSoftObjectPath Soft = TetherAssetOps::MakeSoftPath(AssetPaths[Idx]);
+		if (Soft.IsNull()) continue;
+
+		const FAssetData Data = AR.GetAssetByObjectPath(Soft);
+		if (!Data.IsValid()) continue;
+
+		OutClassPaths[Idx] = Data.AssetClassPath.ToString();
+	}
+}
+
+void UTetherAssetLibrary::GetPackageDependenciesRecursive(
+	const FString& PackageName,
+	bool bHardOnly,
+	int32 MaxDepth,
+	TArray<FString>& OutDependencyPackageNames)
+{
+	OutDependencyPackageNames.Reset();
+
+	FString Trimmed = PackageName.TrimStartAndEnd();
+	if (Trimmed.IsEmpty()) return;
+	int32 DotIdx;
+	if (Trimmed.FindChar(TEXT('.'), DotIdx))
+	{
+		Trimmed = Trimmed.Left(DotIdx);
+	}
+	if (!Trimmed.StartsWith(TEXT("/"))) Trimmed = TEXT("/") + Trimmed;
+
+	IAssetRegistry& AR = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+
+	UE::AssetRegistry::FDependencyQuery Query;
+	if (bHardOnly)
+	{
+		Query.Required = UE::AssetRegistry::EDependencyProperty::Hard | UE::AssetRegistry::EDependencyProperty::Game;
+	}
+
+	TSet<FName> Visited;
+	TArray<TPair<FName, int32>> Stack;
+	Stack.Emplace(FName(*Trimmed), 0);
+	Visited.Add(FName(*Trimmed));
+
+	const bool bUnlimited = (MaxDepth <= 0);
+
+	while (Stack.Num() > 0)
+	{
+		const TPair<FName, int32> Current = Stack.Pop();
+		if (!bUnlimited && Current.Value >= MaxDepth) continue;
+
+		TArray<FName> Links;
+		AR.GetDependencies(Current.Key, Links, UE::AssetRegistry::EDependencyCategory::Package, Query);
+
+		for (const FName& L : Links)
+		{
+			if (Visited.Contains(L)) continue;
+			Visited.Add(L);
+			OutDependencyPackageNames.Add(L.ToString());
+			Stack.Emplace(L, Current.Value + 1);
+		}
+	}
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//   Asset introspection — StaticMesh / SkeletalMesh / Texture / Sound
+// ═══════════════════════════════════════════════════════════════════
+
+namespace TetherAssetIntrospection
+{
+	/** Collect declared material slot names + bound material asset paths
+	 *  from a mesh that uses the shared FSkeletalMaterial / FStaticMaterial
+	 *  shape. Captures "slot missing material" as an empty path so the array
+	 *  stays 1:1 with MaterialSlotNames. */
+	template<typename TMeshMaterial>
+	static void CollectMaterials(const TArray<TMeshMaterial>& Mats,
+		TArray<FString>& OutSlotNames, TArray<FString>& OutAssetPaths)
+	{
+		OutSlotNames.Reserve(Mats.Num());
+		OutAssetPaths.Reserve(Mats.Num());
+		for (const TMeshMaterial& M : Mats)
+		{
+			OutSlotNames.Add(M.MaterialSlotName.ToString());
+			OutAssetPaths.Add(M.MaterialInterface ? M.MaterialInterface->GetPathName() : FString());
+		}
+	}
+
+	/** Load either supported mesh type, including export-text object paths. */
+	static UObject* LoadMeshAsset(const FString& MeshAssetPath, FString& OutMeshType)
+	{
+		FString ObjectPath;
+		TetherAssetOps::ParsePathToObjectPath(MeshAssetPath, ObjectPath);
+		UObject* Object = StaticLoadObject(UObject::StaticClass(), nullptr, *ObjectPath);
+		if (Cast<UStaticMesh>(Object))
+		{
+			OutMeshType = TEXT("StaticMesh");
+			return Object;
+		}
+		if (Cast<USkeletalMesh>(Object))
+		{
+			OutMeshType = TEXT("SkeletalMesh");
+			return Object;
+		}
+		OutMeshType.Reset();
+		return nullptr;
+	}
+
+	static int32 GetMaterialCount(const UObject* MeshObject)
+	{
+		if (const UStaticMesh* Mesh = Cast<UStaticMesh>(MeshObject))
+		{
+			return Mesh->GetStaticMaterials().Num();
+		}
+		if (const USkeletalMesh* Mesh = Cast<USkeletalMesh>(MeshObject))
+		{
+			return Mesh->GetMaterials().Num();
+		}
+		return 0;
+	}
+
+	static FName GetMaterialSlotName(const UObject* MeshObject, int32 MaterialIndex)
+	{
+		if (const UStaticMesh* Mesh = Cast<UStaticMesh>(MeshObject))
+		{
+			return Mesh->GetStaticMaterials().IsValidIndex(MaterialIndex)
+				? Mesh->GetStaticMaterials()[MaterialIndex].MaterialSlotName : NAME_None;
+		}
+		if (const USkeletalMesh* Mesh = Cast<USkeletalMesh>(MeshObject))
+		{
+			return Mesh->GetMaterials().IsValidIndex(MaterialIndex)
+				? Mesh->GetMaterials()[MaterialIndex].MaterialSlotName : NAME_None;
+		}
+		return NAME_None;
+	}
+
+	static UMaterialInterface* GetMaterial(const UObject* MeshObject, int32 MaterialIndex)
+	{
+		if (const UStaticMesh* Mesh = Cast<UStaticMesh>(MeshObject))
+		{
+			return Mesh->GetStaticMaterials().IsValidIndex(MaterialIndex)
+				? Mesh->GetStaticMaterials()[MaterialIndex].MaterialInterface : nullptr;
+		}
+		if (const USkeletalMesh* Mesh = Cast<USkeletalMesh>(MeshObject))
+		{
+			return Mesh->GetMaterials().IsValidIndex(MaterialIndex)
+				? Mesh->GetMaterials()[MaterialIndex].MaterialInterface : nullptr;
+		}
+		return nullptr;
+	}
+
+	static void SetMaterial(UObject* MeshObject, int32 MaterialIndex, UMaterialInterface* Material)
+	{
+		if (UStaticMesh* StaticMesh = Cast<UStaticMesh>(MeshObject))
+		{
+			StaticMesh->GetStaticMaterials()[MaterialIndex].MaterialInterface = Material;
+		}
+		else if (USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(MeshObject))
+		{
+			SkeletalMesh->GetMaterials()[MaterialIndex].MaterialInterface = Material;
+		}
+	}
+
+	static void CollectMaterialSlots(const UObject* MeshObject, TArray<FTetherMeshMaterialSlot>& OutSlots)
+	{
+		OutSlots.Reset();
+		if (const UStaticMesh* Mesh = Cast<UStaticMesh>(MeshObject))
+		{
+			const TArray<FStaticMaterial>& Materials = Mesh->GetStaticMaterials();
+			OutSlots.Reserve(Materials.Num());
+			for (int32 Index = 0; Index < Materials.Num(); ++Index)
+			{
+				const FStaticMaterial& Material = Materials[Index];
+				FTetherMeshMaterialSlot& Slot = OutSlots.AddDefaulted_GetRef();
+				Slot.MaterialIndex = Index;
+				Slot.SlotName = Material.MaterialSlotName.ToString();
+#if WITH_EDITORONLY_DATA
+				Slot.ImportedSlotName = Material.ImportedMaterialSlotName.ToString();
+#endif
+				Slot.MaterialAssetPath = Material.MaterialInterface
+					? Material.MaterialInterface->GetPathName() : FString();
+			}
+			return;
+		}
+
+		if (const USkeletalMesh* Mesh = Cast<USkeletalMesh>(MeshObject))
+		{
+			const TArray<FSkeletalMaterial>& Materials = Mesh->GetMaterials();
+			OutSlots.Reserve(Materials.Num());
+			for (int32 Index = 0; Index < Materials.Num(); ++Index)
+			{
+				const FSkeletalMaterial& Material = Materials[Index];
+				FTetherMeshMaterialSlot& Slot = OutSlots.AddDefaulted_GetRef();
+				Slot.MaterialIndex = Index;
+				Slot.SlotName = Material.MaterialSlotName.ToString();
+#if WITH_EDITORONLY_DATA
+				Slot.ImportedSlotName = Material.ImportedMaterialSlotName.ToString();
+#endif
+				Slot.MaterialAssetPath = Material.MaterialInterface
+					? Material.MaterialInterface->GetPathName() : FString();
+			}
+		}
+	}
+
+	static bool ResolveMaterialIndex(
+		const UObject* MeshObject,
+		const FTetherMeshMaterialAssignment& Assignment,
+		int32& OutMaterialIndex,
+		FString& OutError)
+	{
+		const int32 MaterialCount = GetMaterialCount(MeshObject);
+		const FString TrimmedSlotName = Assignment.SlotName.TrimStartAndEnd();
+
+		if (Assignment.MaterialIndex >= 0)
+		{
+			if (Assignment.MaterialIndex >= MaterialCount)
+			{
+				OutError = FString::Printf(TEXT("material index %d is outside [0, %d)"),
+					Assignment.MaterialIndex, MaterialCount);
+				return false;
+			}
+			OutMaterialIndex = Assignment.MaterialIndex;
+			if (!TrimmedSlotName.IsEmpty() &&
+				GetMaterialSlotName(MeshObject, OutMaterialIndex) != FName(*TrimmedSlotName))
+			{
+				OutError = FString::Printf(
+					TEXT("slot guard '%s' does not match material index %d ('%s')"),
+					*TrimmedSlotName,
+					OutMaterialIndex,
+					*GetMaterialSlotName(MeshObject, OutMaterialIndex).ToString());
+				return false;
+			}
+			return true;
+		}
+
+		if (TrimmedSlotName.IsEmpty())
+		{
+			OutError = TEXT("each assignment requires MaterialIndex >= 0 or a non-empty SlotName");
+			return false;
+		}
+
+		const FName WantedName(*TrimmedSlotName);
+		int32 MatchCount = 0;
+		OutMaterialIndex = INDEX_NONE;
+		for (int32 Index = 0; Index < MaterialCount; ++Index)
+		{
+			if (GetMaterialSlotName(MeshObject, Index) == WantedName)
+			{
+				OutMaterialIndex = Index;
+				++MatchCount;
+			}
+		}
+		if (MatchCount == 0)
+		{
+			OutError = FString::Printf(TEXT("material slot '%s' was not found"), *TrimmedSlotName);
+			return false;
+		}
+		if (MatchCount > 1)
+		{
+			OutError = FString::Printf(
+				TEXT("material slot '%s' is ambiguous (%d matches); use MaterialIndex"),
+				*TrimmedSlotName, MatchCount);
+			return false;
+		}
+		return true;
+	}
+
+	static UMaterialInterface* LoadMaterial(const FString& MaterialAssetPath)
+	{
+		if (MaterialAssetPath.TrimStartAndEnd().IsEmpty())
+		{
+			return nullptr;
+		}
+		FString ObjectPath;
+		TetherAssetOps::ParsePathToObjectPath(MaterialAssetPath, ObjectPath);
+		return LoadObject<UMaterialInterface>(nullptr, *ObjectPath);
+	}
+
+	static FProperty* GetMaterialsProperty(UObject* MeshObject)
+	{
+		if (Cast<UStaticMesh>(MeshObject))
+		{
+			return FindFProperty<FProperty>(
+				UStaticMesh::StaticClass(), UStaticMesh::GetStaticMaterialsName());
+		}
+		if (Cast<USkeletalMesh>(MeshObject))
+		{
+			return FindFProperty<FProperty>(
+				USkeletalMesh::StaticClass(), USkeletalMesh::GetMaterialsMemberName());
+		}
+		return nullptr;
+	}
+}
+
+FTetherStaticMeshInfo UTetherAssetLibrary::GetStaticMeshInfo(const FString& AssetPath)
+{
+	FTetherStaticMeshInfo Out;
+	Out.AssetPath = AssetPath;
+	UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *AssetPath);
+	if (!Mesh) return Out;
+
+	Out.bFound = true;
+
+	const FBoxSphereBounds B = Mesh->GetBounds();
+	Out.BoundsOrigin = B.Origin;
+	Out.BoundsExtent = B.BoxExtent;
+	Out.BoundsSphereRadius = B.SphereRadius;
+
+	TetherAssetIntrospection::CollectMaterials(Mesh->GetStaticMaterials(),
+		Out.MaterialSlotNames, Out.MaterialAssetPaths);
+
+	// LOD stats: walk render data if available; fall back to source data.
+	if (FStaticMeshRenderData* RD = Mesh->GetRenderData())
+	{
+		Out.NumLODs = RD->LODResources.Num();
+		for (int32 i = 0; i < RD->LODResources.Num(); ++i)
+		{
+			const FStaticMeshLODResources& LOD = RD->LODResources[i];
+			FTetherMeshLODStats S;
+			S.LODIndex      = i;
+			S.VertexCount   = LOD.VertexBuffers.PositionVertexBuffer.GetNumVertices();
+			S.TriangleCount = LOD.GetNumTriangles();
+			for (const FStaticMeshSection& Sec : LOD.Sections)
+			{
+				S.MaterialIndices.Add(Sec.MaterialIndex);
+			}
+			if (i == 0)
+			{
+				Out.NumUVChannels = LOD.GetNumTexCoords();
+			}
+			Out.LODStats.Add(MoveTemp(S));
+		}
+	}
+
+	if (const UStaticMeshSocket* First = Mesh->Sockets.Num() > 0 ? Mesh->Sockets[0] : nullptr)
+	{
+		(void)First; // reach into socket array below
+	}
+	Out.NumSockets = Mesh->Sockets.Num();
+	for (const UStaticMeshSocket* S : Mesh->Sockets)
+	{
+		if (S) Out.SocketNames.Add(S->SocketName.ToString());
+	}
+
+	Out.bHasCollision = (Mesh->GetBodySetup() != nullptr) &&
+		(Mesh->GetBodySetup()->AggGeom.GetElementCount() > 0);
+	Out.bHasNaniteData = Mesh->IsNaniteEnabled();
+	return Out;
+}
+
+FTetherSkeletalMeshInfo UTetherAssetLibrary::GetSkeletalMeshInfo(const FString& AssetPath)
+{
+	FTetherSkeletalMeshInfo Out;
+	Out.AssetPath = AssetPath;
+	USkeletalMesh* Mesh = LoadObject<USkeletalMesh>(nullptr, *AssetPath);
+	if (!Mesh) return Out;
+
+	Out.bFound = true;
+
+	const FBoxSphereBounds B = Mesh->GetBounds();
+	Out.BoundsOrigin = B.Origin;
+	Out.BoundsExtent = B.BoxExtent;
+	Out.BoundsSphereRadius = B.SphereRadius;
+
+	TetherAssetIntrospection::CollectMaterials(Mesh->GetMaterials(),
+		Out.MaterialSlotNames, Out.MaterialAssetPaths);
+
+	if (FSkeletalMeshRenderData* RD = Mesh->GetResourceForRendering())
+	{
+		Out.NumLODs = RD->LODRenderData.Num();
+		for (int32 i = 0; i < RD->LODRenderData.Num(); ++i)
+		{
+			const FSkeletalMeshLODRenderData& LOD = RD->LODRenderData[i];
+			FTetherMeshLODStats S;
+			S.LODIndex      = i;
+			S.VertexCount   = LOD.GetNumVertices();
+			// Triangle count = sum over sections of section NumTriangles.
+			int32 Tris = 0;
+			for (const FSkelMeshRenderSection& Sec : LOD.RenderSections)
+			{
+				Tris += Sec.NumTriangles;
+				S.MaterialIndices.Add(Sec.MaterialIndex);
+			}
+			S.TriangleCount = Tris;
+			Out.LODStats.Add(MoveTemp(S));
+		}
+	}
+
+	if (USkeleton* Skel = Mesh->GetSkeleton())
+	{
+		Out.SkeletonPath = Skel->GetPathName();
+		Out.NumBones = Skel->GetReferenceSkeleton().GetNum();
+	}
+
+	for (const USkeletalMeshSocket* S : Mesh->GetActiveSocketList())
+	{
+		if (S) Out.SocketNames.Add(S->SocketName.ToString());
+	}
+	Out.NumSockets = Out.SocketNames.Num();
+
+	Out.NumMorphTargets = Mesh->GetMorphTargets().Num();
+
+	if (UPhysicsAsset* Phys = Mesh->GetPhysicsAsset())
+	{
+		Out.PhysicsAssetPath = Phys->GetPathName();
+	}
+	return Out;
+}
+
+TArray<FTetherMeshMaterialSlot> UTetherAssetLibrary::GetMeshMaterialSlots(
+	const FString& MeshAssetPath)
+{
+	TArray<FTetherMeshMaterialSlot> Out;
+	FString MeshType;
+	if (UObject* MeshObject = TetherAssetIntrospection::LoadMeshAsset(MeshAssetPath, MeshType))
+	{
+		TetherAssetIntrospection::CollectMaterialSlots(MeshObject, Out);
+	}
+	return Out;
+}
+
+FTetherMeshMaterialEditResult UTetherAssetLibrary::SetMeshMaterial(
+	const FString& MeshAssetPath,
+	int32 MaterialIndex,
+	const FString& MaterialAssetPath,
+	bool bSave)
+{
+	FTetherMeshMaterialAssignment Assignment;
+	Assignment.MaterialIndex = MaterialIndex;
+	Assignment.MaterialAssetPath = MaterialAssetPath;
+	return SetMeshMaterials(MeshAssetPath, { Assignment }, bSave);
+}
+
+FTetherMeshMaterialEditResult UTetherAssetLibrary::SetMeshMaterialBySlotName(
+	const FString& MeshAssetPath,
+	const FString& SlotName,
+	const FString& MaterialAssetPath,
+	bool bSave)
+{
+	FTetherMeshMaterialAssignment Assignment;
+	Assignment.SlotName = SlotName;
+	Assignment.MaterialAssetPath = MaterialAssetPath;
+	return SetMeshMaterials(MeshAssetPath, { Assignment }, bSave);
+}
+
+FTetherMeshMaterialEditResult UTetherAssetLibrary::SetMeshMaterials(
+	const FString& MeshAssetPath,
+	const TArray<FTetherMeshMaterialAssignment>& Assignments,
+	bool bSave)
+{
+	using namespace TetherAssetIntrospection;
+
+	FTetherMeshMaterialEditResult Out;
+	UObject* MeshObject = LoadMeshAsset(MeshAssetPath, Out.MeshType);
+	if (!MeshObject)
+	{
+		Out.Error = FString::Printf(
+			TEXT("'%s' is not a loadable UStaticMesh or USkeletalMesh"), *MeshAssetPath);
+		return Out;
+	}
+
+	UPackage* Package = MeshObject->GetOutermost();
+	if (Assignments.IsEmpty())
+	{
+		Out.Error = TEXT("assignments is empty");
+		CollectMaterialSlots(MeshObject, Out.Slots);
+		Out.bPackageDirty = Package && Package->IsDirty();
+		return Out;
+	}
+
+	FProperty* MaterialsProperty = GetMaterialsProperty(MeshObject);
+	if (!MaterialsProperty)
+	{
+		Out.Error = TEXT("could not resolve the mesh Materials property");
+		CollectMaterialSlots(MeshObject, Out.Slots);
+		Out.bPackageDirty = Package && Package->IsDirty();
+		return Out;
+	}
+
+	struct FResolvedAssignment
+	{
+		int32 MaterialIndex = INDEX_NONE;
+		UMaterialInterface* Material = nullptr;
+	};
+	TArray<FResolvedAssignment> Resolved;
+	Resolved.Reserve(Assignments.Num());
+	TSet<int32> TargetedIndices;
+
+	// Validate the complete batch before opening a transaction or touching the asset.
+	for (int32 AssignmentIndex = 0; AssignmentIndex < Assignments.Num(); ++AssignmentIndex)
+	{
+		const FTetherMeshMaterialAssignment& Assignment = Assignments[AssignmentIndex];
+		FResolvedAssignment& Entry = Resolved.AddDefaulted_GetRef();
+		FString ResolveError;
+		if (!ResolveMaterialIndex(MeshObject, Assignment, Entry.MaterialIndex, ResolveError))
+		{
+			Out.Error = FString::Printf(TEXT("assignment %d: %s"), AssignmentIndex, *ResolveError);
+			CollectMaterialSlots(MeshObject, Out.Slots);
+			Out.bPackageDirty = Package && Package->IsDirty();
+			return Out;
+		}
+		if (TargetedIndices.Contains(Entry.MaterialIndex))
+		{
+			Out.Error = FString::Printf(
+				TEXT("assignment %d targets material index %d more than once"),
+				AssignmentIndex, Entry.MaterialIndex);
+			CollectMaterialSlots(MeshObject, Out.Slots);
+			Out.bPackageDirty = Package && Package->IsDirty();
+			return Out;
+		}
+		TargetedIndices.Add(Entry.MaterialIndex);
+
+		Entry.Material = LoadMaterial(Assignment.MaterialAssetPath);
+		if (!Assignment.MaterialAssetPath.TrimStartAndEnd().IsEmpty() && !Entry.Material)
+		{
+			Out.Error = FString::Printf(
+				TEXT("assignment %d: material '%s' is not a loadable UMaterialInterface"),
+				AssignmentIndex, *Assignment.MaterialAssetPath);
+			CollectMaterialSlots(MeshObject, Out.Slots);
+			Out.bPackageDirty = Package && Package->IsDirty();
+			return Out;
+		}
+	}
+
+	for (const FResolvedAssignment& Entry : Resolved)
+	{
+		if (GetMaterial(MeshObject, Entry.MaterialIndex) != Entry.Material)
+		{
+			Out.ChangedIndices.Add(Entry.MaterialIndex);
+		}
+	}
+	Out.ChangedCount = Out.ChangedIndices.Num();
+
+	if (Out.ChangedCount > 0)
+	{
+		// UStaticMesh loads mesh descriptions before material transactions so Undo
+		// can serialize the complete asset safely. Match the engine's own setter.
+		if (UStaticMesh* StaticMesh = Cast<UStaticMesh>(MeshObject))
+		{
+			for (int32 LODIndex = 0; LODIndex < StaticMesh->GetNumSourceModels(); ++LODIndex)
+			{
+				StaticMesh->GetMeshDescription(LODIndex);
+			}
+		}
+
+		FScopedTransaction Transaction(NSLOCTEXT(
+			"TetherAsset", "SetMeshMaterials", "Tether: Set Mesh Materials"));
+		MeshObject->Modify();
+		MeshObject->PreEditChange(MaterialsProperty);
+		for (const FResolvedAssignment& Entry : Resolved)
+		{
+			SetMaterial(MeshObject, Entry.MaterialIndex, Entry.Material);
+		}
+		FPropertyChangedEvent ChangedEvent(MaterialsProperty, EPropertyChangeType::ValueSet);
+		MeshObject->PostEditChangeProperty(ChangedEvent);
+		MeshObject->MarkPackageDirty();
+
+		if (bSave)
+		{
+			TArray<UPackage*> Packages;
+			Packages.Add(Package);
+			if (!Package || !UEditorLoadingAndSavingUtils::SavePackages(Packages, false))
+			{
+				Out.Error = TEXT("material slots changed in memory, but the mesh package could not be saved");
+				CollectMaterialSlots(MeshObject, Out.Slots);
+				Out.bPackageDirty = Package && Package->IsDirty();
+				return Out;
+			}
+			Out.bSaved = true;
+		}
+	}
+
+	CollectMaterialSlots(MeshObject, Out.Slots);
+	Out.bPackageDirty = Package && Package->IsDirty();
+	Out.bSuccess = true;
+	return Out;
+}
+
+FTetherTextureInfo UTetherAssetLibrary::GetTextureInfo(const FString& AssetPath)
+{
+	FTetherTextureInfo Out;
+	Out.AssetPath = AssetPath;
+	UTexture2D* Tex = LoadObject<UTexture2D>(nullptr, *AssetPath);
+	if (!Tex) return Out;
+
+	Out.bFound       = true;
+	Out.Width        = Tex->GetSizeX();
+	Out.Height       = Tex->GetSizeY();
+	Out.NumMips      = Tex->GetNumMips();
+	Out.PixelFormat  = GetPixelFormatString(Tex->GetPixelFormat());
+
+	const UEnum* CompEnum = StaticEnum<TextureCompressionSettings>();
+	Out.CompressionSettings = CompEnum ? CompEnum->GetNameStringByValue((int64)Tex->CompressionSettings) : FString();
+	const UEnum* GroupEnum = StaticEnum<TextureGroup>();
+	Out.LODGroup = GroupEnum ? GroupEnum->GetNameStringByValue((int64)Tex->LODGroup) : FString();
+
+	Out.bSRGB         = Tex->SRGB != 0;
+	Out.bNeverStream  = Tex->NeverStream != 0;
+	Out.ResourceSizeBytes = Tex->GetResourceSizeBytes(EResourceSizeMode::EstimatedTotal);
+	return Out;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SearchableName index queries
+// ═══════════════════════════════════════════════════════════
+//
+// FAssetIdentifier is the union type AssetRegistry uses for both package
+// references (PackageName + optional ObjectName) and SearchableName refs
+// (PackageName = struct's script package, ObjectName = struct short FName,
+// ValueName = the actual indexed value). The struct-flavored constructor
+// `FAssetIdentifier(UScriptStruct*, FName)` builds the right shape; we
+// look the struct up by short name via FindFirstObject.
+
+namespace TetherSearchableNameOps
+{
+	/** Resolve a struct short FName ("GameplayTag") to its UScriptStruct*.
+	 *  Returns nullptr if no such struct is loaded. */
+	UScriptStruct* FindStructByShortName(const FString& ShortName)
+	{
+		if (ShortName.IsEmpty()) return nullptr;
+		return FindFirstObject<UScriptStruct>(*ShortName, EFindFirstObjectOptions::None);
+	}
+
+	/** Strip a trailing ".AssetName" off a content path, leaving just the
+	 *  package path. Both "/Game/Foo/Bar" and "/Game/Foo/Bar.Bar" → "/Game/Foo/Bar". */
+	FString NormalizeToPackagePath(const FString& InPath)
+	{
+		FString Out = InPath.TrimStartAndEnd();
+		int32 DotIdx = INDEX_NONE;
+		if (Out.FindLastChar(TEXT('.'), DotIdx) && DotIdx > 0)
+		{
+			// Only strip when it looks like a package.AssetName separator
+			// (i.e. there's no slash after the dot).
+			if (Out.Find(TEXT("/"), ESearchCase::CaseSensitive, ESearchDir::FromStart, DotIdx) == INDEX_NONE)
+			{
+				Out = Out.Left(DotIdx);
+			}
+		}
+		return Out;
+	}
+}
+
+TArray<FString> UTetherAssetLibrary::FindAssetsReferencingSearchableName(
+	const FString& StructType, const FString& ValueName,
+	const FString& PackagePathFilter, int32 MaxResults)
+{
+	TArray<FString> Result;
+	if (StructType.IsEmpty() || ValueName.IsEmpty()) return Result;
+
+	UScriptStruct* Struct = TetherSearchableNameOps::FindStructByShortName(StructType);
+	if (!Struct)
+	{
+		UE_LOG(LogTemp, Warning,
+			TEXT("FindAssetsReferencingSearchableName: unknown struct '%s' — module not loaded?"),
+			*StructType);
+		return Result;
+	}
+
+	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+	const FAssetIdentifier SearchId(Struct, FName(*ValueName));
+
+	TArray<FAssetIdentifier> Referencers;
+	AssetRegistry.GetReferencers(SearchId, Referencers,
+		UE::AssetRegistry::EDependencyCategory::SearchableName);
+
+	TSet<FString> Seen;
+	for (const FAssetIdentifier& Ref : Referencers)
+	{
+		if (Ref.PackageName.IsNone()) continue;
+		const FString PackageName = Ref.PackageName.ToString();
+		if (!PackagePathFilter.IsEmpty() && !PackageName.StartsWith(PackagePathFilter)) continue;
+		if (Seen.Contains(PackageName)) continue;
+		Seen.Add(PackageName);
+		Result.Add(PackageName);
+		if (MaxResults > 0 && Result.Num() >= MaxResults) break;
+	}
+
+	Result.Sort();
+	return Result;
+}
+
+TArray<FTetherSearchableNameRef> UTetherAssetLibrary::GetSearchableNamesUsedByAsset(
+	const FString& AssetPath, const FString& StructTypeFilter, int32 MaxResults)
+{
+	TArray<FTetherSearchableNameRef> Result;
+	if (AssetPath.IsEmpty()) return Result;
+
+	const FString PackagePath = TetherSearchableNameOps::NormalizeToPackagePath(AssetPath);
+
+	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+	// Brace-init avoids C++ most-vexing-parse: `FAssetIdentifier x(FName(*y));`
+	// would otherwise be parsed as a function declaration.
+	const FAssetIdentifier PackageId{FName(*PackagePath)};
+
+	TArray<FAssetIdentifier> Dependencies;
+	AssetRegistry.GetDependencies(PackageId, Dependencies,
+		UE::AssetRegistry::EDependencyCategory::SearchableName);
+
+	const FName FilterFName = StructTypeFilter.IsEmpty() ? NAME_None : FName(*StructTypeFilter);
+
+	for (const FAssetIdentifier& Dep : Dependencies)
+	{
+		if (!Dep.IsValue()) continue;
+		if (!FilterFName.IsNone() && Dep.ObjectName != FilterFName) continue;
+
+		FTetherSearchableNameRef Ref;
+		Ref.StructType = Dep.ObjectName.ToString();
+		Ref.ValueName = Dep.ValueName.ToString();
+		Result.Add(Ref);
+
+		if (MaxResults > 0 && Result.Num() >= MaxResults) break;
+	}
+
+	return Result;
+}
+
+TArray<FString> UTetherAssetLibrary::ListSearchableNameValues(
+	const FString& StructType, const FString& FilterPrefix, int32 MaxResults)
+{
+	TArray<FString> Result;
+	if (StructType.IsEmpty()) return Result;
+
+	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+	const FName StructFName(*StructType);
+
+	// Stream every asset via EnumerateAllAssets — empty FARFilter through
+	// GetAssets returns nothing on this UE version, but EnumerateAllAssets
+	// reliably visits the full registry.
+	TSet<FString> Unique;
+	TSet<FName> SeenPackages;  // many assets share a package; only query each once
+	AssetRegistry.EnumerateAllAssets([&](const FAssetData& AssetData) -> bool
+	{
+		if (SeenPackages.Contains(AssetData.PackageName)) return true;
+		SeenPackages.Add(AssetData.PackageName);
+
+		const FAssetIdentifier PackageId{AssetData.PackageName};
+		TArray<FAssetIdentifier> Deps;
+		AssetRegistry.GetDependencies(PackageId, Deps,
+			UE::AssetRegistry::EDependencyCategory::SearchableName);
+
+		for (const FAssetIdentifier& Dep : Deps)
+		{
+			if (!Dep.IsValue()) continue;
+			if (Dep.ObjectName != StructFName) continue;
+
+			FString Val = Dep.ValueName.ToString();
+			if (!FilterPrefix.IsEmpty() && !Val.StartsWith(FilterPrefix)) continue;
+			Unique.Add(MoveTemp(Val));
+		}
+		return true;  // keep iterating
+	});
+
+	Result = Unique.Array();
+	Result.Sort();
+	if (MaxResults > 0 && Result.Num() > MaxResults) Result.SetNum(MaxResults);
+	return Result;
+}
+
+FTetherSoundInfo UTetherAssetLibrary::GetSoundInfo(const FString& AssetPath)
+{
+	FTetherSoundInfo Out;
+	Out.AssetPath = AssetPath;
+	UObject* Obj = LoadObject<UObject>(nullptr, *AssetPath);
+	if (!Obj) return Out;
+
+	if (USoundWave* Wave = Cast<USoundWave>(Obj))
+	{
+		Out.bFound          = true;
+		Out.SoundKind       = TEXT("SoundWave");
+		Out.DurationSeconds = Wave->GetDuration();
+		Out.SampleRate      = static_cast<int32>(Wave->GetSampleRateForCurrentPlatform());
+		Out.NumChannels     = Wave->NumChannels;
+		Out.bLooping        = Wave->bLooping;
+		Out.CompressedDataBytes =
+			Wave->GetResourceSizeBytes(EResourceSizeMode::EstimatedTotal);
+	}
+	else if (USoundCue* Cue = Cast<USoundCue>(Obj))
+	{
+		Out.bFound          = true;
+		Out.SoundKind       = TEXT("SoundCue");
+		Out.DurationSeconds = Cue->GetDuration();
+	}
+	else if (USoundBase* Base = Cast<USoundBase>(Obj))
+	{
+		Out.bFound          = true;
+		Out.SoundKind       = Base->GetClass()->GetName();
+		Out.DurationSeconds = Base->GetDuration();
+	}
+	return Out;
+}

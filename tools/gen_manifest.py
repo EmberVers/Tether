@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 """
-Generate bridge_manifest.json — single source of truth for AST preflight and
+Generate tether_manifest.json — single source of truth for AST preflight and
 the kwargs-only wrapper module.
 
 Two run modes (auto-detected by whether `import unreal` succeeds):
 
   CLI driver (outside UE):
-      python tools/gen_manifest.py [--out PATH] [--bridge PATH]
-      Drives a running UE editor via bridge.py to execute the in-UE half,
+      python tools/gen_manifest.py [--out PATH] [--tether PATH]
+      Drives a running UE editor via tether.py to execute the in-UE half,
       captures the JSON output, and writes it to
-      .claude/skills/unreal-bridge/scripts/bridge_manifest.json by default.
+      .claude/skills/tether/scripts/tether_manifest.json by default.
 
   In-UE reflection:
-      bridge.py exec-file tools/gen_manifest.py
-      Walks every unreal.UnrealBridge*Library class plus every
-      unreal.Bridge* / unreal.EBridge* enum, and prints the manifest as
+      tether.py exec-file tools/gen_manifest.py
+      Walks every unreal.Tether*Library class plus every
+      unreal.Tether* / unreal.ETether* enum, and prints the manifest as
       JSON to stdout.
 
 Manifest schema:
@@ -22,7 +22,7 @@ Manifest schema:
       "generated_at": "<ISO 8601 UTC>",
       "ue_version": "5.7.x",
       "libraries": {
-        "UnrealBridgeAssetLibrary": {
+        "TetherAssetLibrary": {
           "functions": {
             "search_assets": {
               "params": [
@@ -36,7 +36,7 @@ Manifest schema:
         }
       },
       "enums": {
-        "BridgeAssetSearchScope": ["ALL_ASSETS", "PROJECT", "CUSTOM_PACKAGE_PATH"]
+        "TetherAssetSearchScope": ["ALL_ASSETS", "PROJECT", "CUSTOM_PACKAGE_PATH"]
       }
     }
 """
@@ -53,19 +53,19 @@ except ImportError:
     _IN_UE = False
 
 
-# ── In-UE half: reflect the live UnrealBridge* surface ─────────────────────
+# ── In-UE half: reflect the live Tether* surface ─────────────────────
 
 def _build_manifest_in_ue() -> dict:
-    """Walk unreal.UnrealBridge*Library classes + Bridge* enums; return a manifest dict."""
-    # All UnrealBridge*Library classes inherit from BlueprintFunctionLibrary →
+    """Walk unreal.Tether*Library classes + Tether* enums; return a manifest dict."""
+    # All Tether*Library classes inherit from BlueprintFunctionLibrary →
     # UObject → _ObjectBase, which contributes ~50 generic helpers (cast,
-    # get_class, call_method, get_editor_property, …). Those are NOT bridge
+    # get_class, call_method, get_editor_property, …). Those are NOT tether
     # functions; subtract them so the manifest only carries our UFUNCTIONs.
     inherited_names = _collect_inherited_method_names()
 
     libraries = {}
     for name in sorted(dir(unreal)):
-        if not name.startswith("UnrealBridge") or not name.endswith("Library"):
+        if not name.startswith("Tether") or not name.endswith("Library"):
             continue
         cls = getattr(unreal, name, None)
         if cls is None or not isinstance(cls, type):
@@ -88,8 +88,8 @@ def _build_manifest_in_ue() -> dict:
     enums = {}
     for name in sorted(dir(unreal)):
         # UE Python strips the `E` prefix on enums but the user's reference docs
-        # also use `BridgeXxx` form — keep both names if both surface.
-        if not (name.startswith("Bridge") or name.startswith("EBridge")):
+        # also use `TetherXxx` form — keep both names if both surface.
+        if not (name.startswith("Tether") or name.startswith("ETether")):
             continue
         cls = getattr(unreal, name, None)
         if cls is None or not isinstance(cls, type):
@@ -112,7 +112,7 @@ def _build_manifest_in_ue() -> dict:
 
 # Inherited method set on every UE Python USTRUCT (FStructBase). Keep in sync if
 # UE adds new wrapper methods — easy to spot: `dir(unreal.Vector)` and subtract
-# the Vector-specific fields. None of these are bridge-struct fields.
+# the Vector-specific fields. None of these are tether-struct fields.
 _USTRUCT_INHERITED_METHODS = {
     "assign", "cast", "copy", "export_text", "get_editor_property",
     "import_text", "set_editor_properties", "set_editor_property",
@@ -121,19 +121,19 @@ _USTRUCT_INHERITED_METHODS = {
 
 
 def _collect_struct_fields(enums: dict) -> dict:
-    """For every `unreal.Bridge*` USTRUCT, list its field names by subtracting the
+    """For every `unreal.Tether*` USTRUCT, list its field names by subtracting the
     inherited UE Python wrapper methods from `dir(cls)`. Used by preflight to
-    catch attribute-confusion errors on bridge struct returns (e.g. agent does
+    catch attribute-confusion errors on tether struct returns (e.g. agent does
     `summary.parent_class_name` when the field is `parent_class_path`)."""
     structs = {}
     struct_base = getattr(unreal, "StructBase", None)
     if struct_base is None:
         return structs
     for name in sorted(dir(unreal)):
-        if not name.startswith("Bridge"):
+        if not name.startswith("Tether"):
             continue
         if name in enums:
-            continue  # Bridge enums share the prefix; skip them
+            continue  # Tether enums share the prefix; skip them
         cls = getattr(unreal, name, None)
         if cls is None or not isinstance(cls, type):
             continue
@@ -167,8 +167,8 @@ def _collect_inherited_method_names() -> set:
     base classes (BlueprintFunctionLibrary, Object, _ObjectBase, …).
 
     Strategy: take the dir() of BlueprintFunctionLibrary itself — every
-    UnrealBridge*Library inherits from it. Names present on the bare base
-    class are NOT bridge functions and should not appear in the manifest.
+    Tether*Library inherits from it. Names present on the bare base
+    class are NOT tether functions and should not appear in the manifest.
     """
     base_names = set()
     base = getattr(unreal, "BlueprintFunctionLibrary", None)
@@ -345,29 +345,29 @@ def _cli() -> int:
     import subprocess
 
     parser = argparse.ArgumentParser(
-        description="Generate bridge_manifest.json by introspecting a running UE editor."
+        description="Generate tether_manifest.json by introspecting a running UE editor."
     )
-    parser.add_argument("--out", help="Output path (default: <repo>/.claude/skills/unreal-bridge/scripts/bridge_manifest.json)")
-    parser.add_argument("--wrapper-out", help="Wrapper module output path (default: <repo>/Plugin/UnrealBridge/Content/Python/unreal_bridge.py)")
+    parser.add_argument("--out", help="Output path (default: <repo>/.claude/skills/tether/scripts/tether_manifest.json)")
+    parser.add_argument("--wrapper-out", help="Wrapper module output path (default: <repo>/Plugin/Tether/Content/Python/tether.py)")
     parser.add_argument("--no-wrapper", action="store_true", help="Skip generating the kwargs-only wrapper module")
-    parser.add_argument("--bridge", help="Path to bridge.py (default: auto-detect relative to this script)")
-    parser.add_argument("--timeout", type=int, default=60, help="Bridge call timeout in seconds (default: 60)")
+    parser.add_argument("--tether", help="Path to tether.py (default: auto-detect relative to this script)")
+    parser.add_argument("--timeout", type=int, default=60, help="Tether call timeout in seconds (default: 60)")
     args = parser.parse_args()
 
     here = os.path.dirname(os.path.abspath(__file__))
     repo = os.path.dirname(here)  # tools/ → repo root
-    bridge = args.bridge or os.path.join(
-        repo, ".claude", "skills", "unreal-bridge", "scripts", "bridge.py"
+    tether = args.tether or os.path.join(
+        repo, ".claude", "skills", "tether", "scripts", "tether.py"
     )
     out = args.out or os.path.join(
-        repo, ".claude", "skills", "unreal-bridge", "scripts", "bridge_manifest.json"
+        repo, ".claude", "skills", "tether", "scripts", "tether_manifest.json"
     )
 
-    if not os.path.isfile(bridge):
-        print(f"ERROR: bridge.py not found at {bridge}", file=sys.stderr)
+    if not os.path.isfile(tether):
+        print(f"ERROR: tether.py not found at {tether}", file=sys.stderr)
         return 1
 
-    cmd = [sys.executable, bridge, "--json", "exec-file", os.path.abspath(__file__)]
+    cmd = [sys.executable, tether, "--json", "exec-file", os.path.abspath(__file__)]
     try:
         # Force UTF-8 + replace on decode errors. `text=True` alone defaults to
         # the active locale (GBK on zh-CN Windows), which dies on the UTF-8
@@ -376,11 +376,11 @@ def _cli() -> int:
                              encoding="utf-8", errors="replace",
                              timeout=args.timeout)
     except subprocess.TimeoutExpired:
-        print(f"ERROR: bridge call timed out after {args.timeout}s", file=sys.stderr)
+        print(f"ERROR: tether call timed out after {args.timeout}s", file=sys.stderr)
         return 1
 
     if res.returncode != 0:
-        print(f"ERROR: bridge call failed (exit {res.returncode})", file=sys.stderr)
+        print(f"ERROR: tether call failed (exit {res.returncode})", file=sys.stderr)
         if res.stderr:
             print(res.stderr, file=sys.stderr)
         if res.stdout:
@@ -390,7 +390,7 @@ def _cli() -> int:
     try:
         outer = json.loads(res.stdout)
     except json.JSONDecodeError:
-        print(f"ERROR: bridge returned non-JSON:\n{res.stdout[:500]}", file=sys.stderr)
+        print(f"ERROR: tether returned non-JSON:\n{res.stdout[:500]}", file=sys.stderr)
         return 1
 
     if not outer.get("success"):
@@ -432,7 +432,7 @@ def _cli() -> int:
 
     if not args.no_wrapper:
         wrapper_out = args.wrapper_out or os.path.join(
-            repo, "Plugin", "UnrealBridge", "Content", "Python", "unreal_bridge.py"
+            repo, "Plugin", "Tether", "Content", "Python", "tether.py"
         )
         wrapper_src, stats = _generate_wrapper(last_json)
         os.makedirs(os.path.dirname(wrapper_out), exist_ok=True)
@@ -442,14 +442,14 @@ def _cli() -> int:
         print(f"  {stats['classes']} classes, {stats['methods']} methods, "
               f"{stats['skipped']} skipped (Python keyword in param name)")
 
-        # UE auto-loads Python from the target project's Plugins/UnrealBridge/
+        # UE auto-loads Python from the target project's Plugins/Tether/
         # Content/Python/, not the source repo. Mirror the wrapper there so a
-        # plain `import unreal_bridge` inside UE just works after regen.
+        # plain `import tether` inside UE just works after regen.
         proj_uproject = (last_json.get("project_path") or "").strip()
         if proj_uproject:
             mirror = os.path.join(
-                os.path.dirname(proj_uproject), "Plugins", "UnrealBridge",
-                "Content", "Python", "unreal_bridge.py",
+                os.path.dirname(proj_uproject), "Plugins", "Tether",
+                "Content", "Python", "tether.py",
             )
             try:
                 os.makedirs(os.path.dirname(mirror), exist_ok=True)
@@ -470,23 +470,23 @@ def _cli() -> int:
 def _generate_wrapper(manifest: dict) -> "tuple[str, dict]":
     """Emit the kwargs-only wrapper module source from the manifest.
 
-    Each unreal.UnrealBridgeXxxLibrary becomes a class `Xxx` whose
-    @staticmethods mirror the bridge functions with kwargs-only signatures.
+    Each unreal.TetherXxxLibrary becomes a class `Xxx` whose
+    @staticmethods mirror the tether functions with kwargs-only signatures.
     """
     out = []
     out.append('"""')
-    out.append("Auto-generated kwargs-only wrapper for UnrealBridge*Library functions.")
+    out.append("Auto-generated kwargs-only wrapper for Tether*Library functions.")
     out.append("")
     out.append("Regenerate after C++ header changes:")
     out.append("    python tools/gen_manifest.py")
     out.append("")
-    out.append("Usage from a script sent via the bridge:")
-    out.append("    from unreal_bridge import Asset, Level")
+    out.append("Usage from a script sent via the tether:")
+    out.append("    from tether import Asset, Level")
     out.append("    paths, _ = Asset.search_assets_in_all_content(query='Hero', max_results=20)")
     out.append("    info = Level.get_actor_info(actor_path='/Persistent/Player')")
     out.append("")
     out.append("Why kwargs-only? Positional-arg-order is the #1 source of model")
-    out.append("hallucinations against bridge APIs — kwargs make the contract")
+    out.append("hallucinations against tether APIs — kwargs make the contract")
     out.append("structural rather than mnemonic.")
     out.append('"""')
     out.append("")
@@ -500,7 +500,7 @@ def _generate_wrapper(manifest: dict) -> "tuple[str, dict]":
 
     for lib_name in sorted(manifest.get("libraries", {}).keys()):
         lib = manifest["libraries"][lib_name]
-        short = _short_name(lib_name)  # UnrealBridgeAssetLibrary → Asset
+        short = _short_name(lib_name)  # TetherAssetLibrary → Asset
         out.append(f"class {short}:")
         out.append(f'    """Wraps unreal.{lib_name} (kwargs-only)."""')
         out.append("")
@@ -549,24 +549,24 @@ def _generate_wrapper(manifest: dict) -> "tuple[str, dict]":
                 extra_notes.append(
                     "Note: SoftObjectPath does NOT stringify usefully — call "
                     ".export_text() for the '/Game/Foo.Foo' path (or .to_tuple()[0]). "
-                    "See bridge-asset-api.md.")
+                    "See tether-asset-api.md.")
 
-            # Function-name traps (matched by lib + name; a single bridge-X
+            # Function-name traps (matched by lib + name; a single tether-X
             # function shouldn't have more than one trap so this stays linear):
             qualname = f"{lib_name}.{fn_name}"
-            if qualname == "UnrealBridgeChooserLibrary.set_chooser_cell_raw":
+            if qualname == "TetherChooserLibrary.set_chooser_cell_raw":
                 extra_notes.append(
                     "Trap: BoolColumn cells use bare enum text ('MatchTrue'/'MatchFalse'/"
                     "'MatchAny'), NOT a struct like '(Value=True)'. EnumColumn cells need "
                     "explicit '(Comparison=MatchAny)' for wildcards — default '()' compares "
-                    "against int 0. See bridge-chooser-api.md cell-format table.")
+                    "against int 0. See tether-chooser-api.md cell-format table.")
             elif fn_name.startswith("add_chooser_column"):
                 extra_notes.append(
                     "If this is a freshly-created chooser (empty ContextData), call "
                     "set_chooser_context_object_class FIRST — otherwise the editor binding "
-                    "widget shows 'NoPropertyBound' on every column. See bridge-chooser-api.md "
+                    "widget shows 'NoPropertyBound' on every column. See tether-chooser-api.md "
                     "step 0.")
-            elif qualname == "UnrealBridgeAnimLibrary.get_anim_node_details":
+            elif qualname == "TetherAnimLibrary.get_anim_node_details":
                 extra_notes.append(
                     "Index-based addressing is fragile + top-level AnimGraph only. For "
                     "state-machine interiors / transition rules / sub-graphs, use "
@@ -596,10 +596,10 @@ def _generate_wrapper(manifest: dict) -> "tuple[str, dict]":
 
 
 def _short_name(lib_name: str) -> str:
-    """UnrealBridgeAssetLibrary → Asset; UnrealBridgeUMGLibrary → UMG."""
+    """TetherAssetLibrary → Asset; TetherUMGLibrary → UMG."""
     s = lib_name
-    if s.startswith("UnrealBridge"):
-        s = s[len("UnrealBridge"):]
+    if s.startswith("Tether"):
+        s = s[len("Tether"):]
     if s.endswith("Library"):
         s = s[: -len("Library")]
     return s or lib_name
