@@ -42,16 +42,10 @@ jobs:
       - name: README bilingual heading sync
         run: python tools/check_readme_sync.py
 
-      # Manifest staleness gate. KNOWN DRIFT at the time this workflow was
-      # added (manifest not regenerated after C++ changes):
-      #   TetherBlueprintLibrary: set_node_comment, set_variable_metadata
-      #   TetherGameplayLibrary: play_sound2_d vs manifest's play_sound2d
-      #   TetherProceduralLibrary: sample_points_poisson_disk2_d/3_d vs
-      #     manifest's sample_points_poisson_disk2d/3d
-      # Fixing it requires regenerating the manifest against a live editor
-      # (python tools/gen_manifest.py) — not possible in offline CI. The
-      # step reports the drift in the log without failing the pipeline;
-      # flip continue-on-error to false once the manifest is regenerated.
-      - name: Manifest staleness (advisory until manifest regen)
+      # Manifest staleness gate (hard). The manifest is regenerated against
+      # a live editor (python tools/gen_manifest.py) whenever the UFUNCTION
+      # surface changes; this offline step cross-checks the headers so a
+      # forgotten regen fails the pipeline instead of shipping a stale
+      # manifest that preflight rejects with "no such function".
+      - name: Manifest staleness gate
         run: python tools/gen_manifest.py --check
-        continue-on-error: true

@@ -122,29 +122,42 @@ def _apply_min_engine_stamps(manifest: dict) -> "tuple[dict, int]":
 
 # ── Offline staleness check (no editor needed) ──────────────────────────────
 
-# UE's Python binding generator turns a trailing digit+capital in the C++
-# name into `<digit>_<lower>` (PlaySound2D → play_sound2_d), while the naive
-# snake_caser produces `<digit><lower>` (play_sound2d). Map the handful of
-# Tether names that hit the rule; anything unmapped falls back to naive.
+# UE 5.7's Python binding generator snake_cases digit+capital as
+# `<digit><lower>` (PlaySound2D → play_sound2d — verified live against the
+# editor reflection, see session log), which the naive snake_caser below
+# already produces for these names. The table stays for names whose true
+# binding differs from naive (none so far); anything unmapped falls back
+# to naive. An exceptions entry that matches the naive result would be a
+# no-op, and a WRONG entry here makes --check flag a phantom drift pair
+# (missing + manifest-only) — which is exactly what happened with the
+# pre-verification `2_d` guesses.
 _UE_SNAKE_EXCEPTIONS = {
-    "PlaySound2D": "play_sound2_d",
-    "SamplePointsPoissonDisk2D": "sample_points_poisson_disk2_d",
-    "SamplePointsPoissonDisk3D": "sample_points_poisson_disk3_d",
+    # "C++Name": "true_ue_binding_name",  # only if != naive snake_case
 }
 
 
 def _ue_snake(name: str) -> str:
     """C++ UFUNCTION name → expected UE Python binding name (snake_case).
 
-    Handles the digit+capital boundary the same way UE's generator does
-    (via the exceptions table above).
+    UE's binding generator treats a digit+capital boundary ("Sound2D") as
+    NO word break: PlaySound2D → play_sound2d (verified live against editor
+    reflection in UE 5.7; SamplePointsPoissonDisk2D likewise). The naive
+    two-pass snake_caser below inserts a break there (play_sound2_d), so
+    collapse those false breaks before returning. The exceptions table
+    above covers any future name whose true binding differs from BOTH
+    rules — an entry that matches a rule is a no-op, but a WRONG entry
+    makes --check flag a phantom drift pair.
     """
     import re as _re
     if name in _UE_SNAKE_EXCEPTIONS:
         return _UE_SNAKE_EXCEPTIONS[name]
     s = _re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", name)
     s = _re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", s)
-    return s.lower()
+    s = s.lower()
+    # Collapse digit-capital false breaks: the second regex above turned
+    # "...Sound2D" into "..._sound2_d"; UE binds it "..._sound2d".
+    s = _re.sub(r"(\d)_([a-z])", r"\1\2", s)
+    return s
 
 
 def _header_ufunction_sets(public_dir: "str | None" = None) -> "dict[str, set[str]]":
@@ -412,15 +425,44 @@ def _introspect_function(fn, name: str):
     #   X.foo(arg1, arg2=default) -> RetType -- summary
     #   foo(arg1) -> RetType -- summary
     first_line = doc.split("\n", 1)[0].strip()
-    m = re.match(
-        r"(?:[A-Za-z_]\w*\.)?(\w+)\s*\(([^)]*)\)\s*(?:->\s*([^-\n]+?))?\s*(?:--\s*(.*))?$",
-        first_line,
-    )
+    # A parameter default can itself contain parentheses (a UE tooltip that
+    # UHT inlined as a string default, e.g. tooltip="...(empty = leave
+    # unchanged)..."), so the old `\(([^)]*)\)` stopped at the first `)` inside
+    # the default and failed to match, silently dropping the function from
+    # the manifest. Scan with paren depth instead, skipping string literals.
+    m = re.match(r"(?:[A-Za-z_]\w*\.)?(\w+)\s*\(", first_line)
     if not m:
         return None
-    _matched_name, arg_str, ret_str, summary_str = m.groups()
-    ret_str = (ret_str or "").strip()
-    summary_str = (summary_str or summary or "").strip()
+    i = m.end()
+    depth = 1
+    in_str = False
+    while i < len(first_line):
+        ch = first_line[i]
+        if in_str:
+            if ch == "\\":
+                i += 2
+                continue
+            if ch == '"':
+                in_str = False
+        elif ch == '"':
+            in_str = True
+        elif ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth -= 1
+            if depth == 0:
+                break
+        i += 1
+    else:
+        return None  # unbalanced signature line — not a UFUNCTION binding
+    arg_str = first_line[m.end():i]
+    rest = first_line[i + 1:]
+    ret_str, summary_str = "", ""
+    ret_m = re.match(r"\s*->\s*([^-\n]+?)\s*(?:--\s*(.*))?$", rest)
+    if ret_m:
+        ret_str = (ret_m.group(1) or "").strip()
+        summary_str = (ret_m.group(2) or "").strip()
+    summary_str = summary_str or summary
 
     params = []
     for raw in _split_top_level(arg_str):

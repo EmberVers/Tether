@@ -54,10 +54,11 @@ class UeSnakeTests(unittest.TestCase):
         self.assertEqual(gm._ue_snake("ParseTraceToSummary"), "parse_trace_to_summary")
 
     def test_digit_capital_boundary_uses_ue_rule(self):
-        # UE binds PlaySound2D as play_sound2_d, not the naive play_sound2d.
-        self.assertEqual(gm._ue_snake("PlaySound2D"), "play_sound2_d")
+        # UE 5.7 binds PlaySound2D as play_sound2d (verified live against
+        # editor reflection), which the naive snake_caser produces directly.
+        self.assertEqual(gm._ue_snake("PlaySound2D"), "play_sound2d")
         self.assertEqual(gm._ue_snake("SamplePointsPoissonDisk3D"),
-                         "sample_points_poisson_disk3_d")
+                         "sample_points_poisson_disk3d")
 
     def test_acronyms(self):
         self.assertEqual(gm._ue_snake("GetUMGWidgetInfo"), "get_umg_widget_info")
@@ -75,7 +76,7 @@ class HeaderUfunctionSetTests(unittest.TestCase):
             got = gm._header_ufunction_sets(td)
             self.assertEqual(
                 got,
-                {"TetherFooLibrary": {"search_things", "play_sound2_d",
+                {"TetherFooLibrary": {"search_things", "play_sound2d",
                                       "set_node_comment"}},
             )
 
@@ -143,7 +144,7 @@ class CheckDriftTests(unittest.TestCase):
     def test_identical_sets_pass(self):
         code, out = self._run(
             {"TetherFooLibrary": ["SearchThings", "PlaySound2D"]},
-            {"TetherFooLibrary": {"search_things", "play_sound2_d"}},
+            {"TetherFooLibrary": {"search_things", "play_sound2d"}},
         )
         self.assertEqual(code, 0)
         self.assertIn("matches the headers", out)
@@ -188,15 +189,19 @@ class CheckDriftTests(unittest.TestCase):
         self.assertIn("manifest but NOT in headers", out)
 
     def test_snake_case_binding_mismatch_reported_as_drift(self):
-        # The real-world PlaySound2D case: UE binds it as play_sound2_d while
-        # a manifest generated under a different naming rule carries
-        # play_sound2d — both sides show a one-item diff and the check fails.
-        code, out = self._run(
-            {"TetherFooLibrary": ["PlaySound2D"]},
-            {"TetherFooLibrary": {"play_sound2d"}},
-        )
+        # The exceptions-table mechanism: if a future UE version binds a
+        # name differently than the naive snake_caser, the table maps it
+        # and a manifest carrying the naive name shows a two-item diff.
+        gm._UE_SNAKE_EXCEPTIONS["PlaySound2D"] = "play_sound_2d"  # simulate
+        try:
+            code, out = self._run(
+                {"TetherFooLibrary": ["PlaySound2D"]},
+                {"TetherFooLibrary": {"play_sound2d"}},
+            )
+        finally:
+            gm._UE_SNAKE_EXCEPTIONS.pop("PlaySound2D", None)
         self.assertEqual(code, 1)
-        self.assertIn("play_sound2_d", out)
+        self.assertIn("play_sound_2d", out)
         self.assertIn("play_sound2d", out)
 
     def test_missing_manifest_file_fails(self):
