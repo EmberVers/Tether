@@ -87,6 +87,12 @@ struct FTetherUPropertyInfo
  * net. C++ access modifiers exist for invariant protection; abusing
  * write_uproperty on a `private:` field can corrupt class state.
  *
+ * **Native-CDO gate**: when a write target resolves to the class-default
+ * object of a native /Script/ class, the write entry points refuse it
+ * unless `bAllowNativeCdo=true` is passed — such writes are memory-only
+ * (never saved, lost on restart) yet affect every live instance of the
+ * class in the process. Blueprint CDOs are asset-backed and exempt.
+ *
  * Uses export-text strings as the universal value format (UE's native
  * serialisation) — works for any property type, including structs and
  * containers, without needing per-type Python wrappers.
@@ -153,16 +159,28 @@ public:
 	 *                           — open editor windows refresh in real time.
 	 *                           Set false for batch edits where you only want
 	 *                           one notify at the end (lower thrash).
+	 * @param bAllowNativeCdo    When the resolved write target is the CDO of
+	 *                           a native /Script/ class, the write is refused
+	 *                           unless this is explicitly true. Native-CDO
+	 *                           writes are memory-only (lost on editor
+	 *                           restart, saved nowhere) yet instantly affect
+	 *                           every live instance of the class — the
+	 *                           refusal makes that trade-off a deliberate
+	 *                           choice instead of an accident. Blueprint
+	 *                           CDOs (`Default__Foo_C`) are asset-backed and
+	 *                           unaffected by this gate.
 	 *
 	 * @return true on success; false if path couldn't resolve, ImportText
-	 *         failed, or the target object was null.
+	 *         failed, the target object was null, or a native-CDO target was
+	 *         refused (see bAllowNativeCdo).
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Tether|Property")
 	static bool SetUPropertyFromExportText(
 		const FString& ObjectOrClassPath,
 		const FString& PropertyPath,
 		const FString& ValueExportText,
-		bool bFireChangeNotify = true);
+		bool bFireChangeNotify = true,
+		bool bAllowNativeCdo = false);
 
 	// ── Container ops ──────────────────────────────────────────────
 	//
@@ -177,28 +195,42 @@ public:
 	 *    - for TArray<float>:    "1.5"
 	 *    - for TArray<FVector>:  "(X=1,Y=2,Z=3)"
 	 *    - for FGameplayTagContainer: "Combat.Hit" (also accepts (TagName="..."))
+	 *
+	 *  @param bAllowNativeCdo  See SetUPropertyFromExportText — native
+	 *                          /Script/ CDO targets are refused unless true.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Tether|Property")
 	static bool ArrayAppendUProperty(
 		const FString& ObjectOrClassPath,
 		const FString& PropertyPath,
 		const FString& ElementExportText,
-		bool bFireChangeNotify = true);
+		bool bFireChangeNotify = true,
+		bool bAllowNativeCdo = false);
 
-	/** Remove element at Index. Negative Index counts from the end (-1 = last). */
+	/** Remove element at Index. Negative Index counts from the end (-1 = last).
+	 *
+	 *  @param bAllowNativeCdo  See SetUPropertyFromExportText — native
+	 *                          /Script/ CDO targets are refused unless true.
+	 */
 	UFUNCTION(BlueprintCallable, Category = "Tether|Property")
 	static bool ArrayRemoveUProperty(
 		const FString& ObjectOrClassPath,
 		const FString& PropertyPath,
 		int32 Index,
-		bool bFireChangeNotify = true);
+		bool bFireChangeNotify = true,
+		bool bAllowNativeCdo = false);
 
-	/** Empty the array / container. */
+	/** Empty the array / container.
+	 *
+	 *  @param bAllowNativeCdo  See SetUPropertyFromExportText — native
+	 *                          /Script/ CDO targets are refused unless true.
+	 */
 	UFUNCTION(BlueprintCallable, Category = "Tether|Property")
 	static bool ArrayClearUProperty(
 		const FString& ObjectOrClassPath,
 		const FString& PropertyPath,
-		bool bFireChangeNotify = true);
+		bool bFireChangeNotify = true,
+		bool bAllowNativeCdo = false);
 
 	// ── CDO helper ─────────────────────────────────────────────────
 

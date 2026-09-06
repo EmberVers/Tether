@@ -18,6 +18,16 @@ with a deterministic error naming the required engine version — a stub's
 silent default (0 / empty / `bSuccess=false`) is never mistaken for a real
 result.
 
+**Direct `--endpoint` mode is exempt from this gate.** The engine version
+comes from discovery responses, and direct connections skip discovery, so
+`identity.engine_version` is empty and the gate is not evaluated. The call
+is not blocked — but when the script touches at least one `min_engine`-marked
+function, `tether.py` prints one stderr line noting that the gate is inactive
+and a stub-gated function may silently return its default. To get full gate
+coverage, use discovery mode, or pin the version explicitly for a standalone
+lint with `tether.py preflight <file> --engine-version 5.6.4` before
+connecting directly.
+
 ## Whole-library gates (disappear entirely on 5.4)
 
 Each library below is wrapped in `#if !UE_VERSION_OLDER_THAN(5, 7, 0)`. On 5.4

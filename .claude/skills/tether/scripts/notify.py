@@ -93,7 +93,9 @@ def post(url: str, payload: dict, timeout: float = 10.0) -> tuple[int, str]:
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             body = resp.read().decode("utf-8", errors="replace")
-            return resp.status, body
+            # resp.status is 3.9+; older hosts only expose getcode().
+            status = getattr(resp, "status", None) or resp.getcode()
+            return status, body
     except urllib.error.HTTPError as e:
         return e.code, e.read().decode("utf-8", errors="replace")
     except (urllib.error.URLError, socket.timeout, TimeoutError, OSError) as e:

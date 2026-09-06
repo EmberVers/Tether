@@ -60,6 +60,37 @@ namespace TetherPropertyOps
 		return Cands.Num() > 0 ? Cands[0] : nullptr;
 	}
 
+	/** True when Obj is the class-default object of a native /Script/ class.
+	 *  Blueprint CDOs (Default__Foo_C) live in /Game asset packages and are
+	 *  excluded — they are ordinary (saved) asset data. */
+	bool IsNativeScriptCdo(const UObject* Obj)
+	{
+		if (!Obj || !Obj->HasAnyFlags(RF_ClassDefaultObject))
+		{
+			return false;
+		}
+		const UClass* Cls = Obj->GetClass();
+		if (!Cls || !Cls->HasAnyClassFlags(CLASS_Native))
+		{
+			return false;
+		}
+		const UPackage* Pkg = Cls->GetPackage();
+		return Pkg && Pkg->GetName().StartsWith(TEXT("/Script/"));
+	}
+
+	/** Shared refusal for native-CDO writes. Always returns false so write
+	 *  entry points can `return RefuseNativeCdoWrite(...);`. */
+	bool RefuseNativeCdoWrite(const UObject* Obj, const TCHAR* ApiName)
+	{
+		UE_LOG(LogTemp, Warning,
+			TEXT("TetherProperty: %s refused: target '%s' is the CDO of native class '%s'. ")
+			TEXT("Writes to a native /Script/ CDO are memory-only (lost on editor restart, never saved with any asset) ")
+			TEXT("and immediately affect every instance of the class in this process. ")
+			TEXT("Pass bAllowNativeCdo=true to opt in explicitly."),
+			ApiName, *Obj->GetPathName(), *Obj->GetClass()->GetName());
+		return false;
+	}
+
 	// ── Path parsing ──────────────────────────────────────────────
 
 	struct FPathSegment
@@ -316,11 +347,19 @@ FString UTetherPropertyLibrary::GetUPropertyAsExportText(
 
 bool UTetherPropertyLibrary::SetUPropertyFromExportText(
 	const FString& ObjectOrClassPath, const FString& PropertyPath,
-	const FString& ValueExportText, bool bFireChangeNotify)
+	const FString& ValueExportText, bool bFireChangeNotify, bool bAllowNativeCdo)
 {
 	const auto Path = TetherPropertyOps::ParsePath(PropertyPath);
 	for (UObject* Obj : TetherPropertyOps::ResolveCandidates(ObjectOrClassPath))
 	{
+		// Native /Script/ CDO: opt-in gate (memory-only write, affects all
+		// live instances, invisible to the AssetRegistry). Checked before
+		// path resolution so the refusal is deterministic even when the
+		// property path is also wrong.
+		if (TetherPropertyOps::IsNativeScriptCdo(Obj) && !bAllowNativeCdo)
+		{
+			return TetherPropertyOps::RefuseNativeCdoWrite(Obj, TEXT("SetUPropertyFromExportText"));
+		}
 		const auto Resolved = TetherPropertyOps::ResolvePath(Obj, Path);
 		if (!Resolved.LeafProperty || !Resolved.LeafValuePtr) continue;
 
@@ -362,13 +401,18 @@ bool UTetherPropertyLibrary::SetUPropertyFromExportText(
 
 bool UTetherPropertyLibrary::ArrayAppendUProperty(
 	const FString& ObjectOrClassPath, const FString& PropertyPath,
-	const FString& ElementExportText, bool bFireChangeNotify)
+	const FString& ElementExportText, bool bFireChangeNotify, bool bAllowNativeCdo)
 {
 	const auto Path_ = TetherPropertyOps::ParsePath(PropertyPath);
 	UObject* Obj = nullptr;
 	TetherPropertyOps::FResolvedProp Resolved;
 	for (UObject* C : TetherPropertyOps::ResolveCandidates(ObjectOrClassPath))
 	{
+		// Native /Script/ CDO opt-in gate — see SetUPropertyFromExportText.
+		if (TetherPropertyOps::IsNativeScriptCdo(C) && !bAllowNativeCdo)
+		{
+			return TetherPropertyOps::RefuseNativeCdoWrite(C, TEXT("ArrayAppendUProperty"));
+		}
 		const auto R = TetherPropertyOps::ResolvePath(C, Path_);
 		if (R.LeafProperty && R.LeafValuePtr) { Obj = C; Resolved = R; break; }
 	}
@@ -443,13 +487,18 @@ bool UTetherPropertyLibrary::ArrayAppendUProperty(
 
 bool UTetherPropertyLibrary::ArrayRemoveUProperty(
 	const FString& ObjectOrClassPath, const FString& PropertyPath,
-	int32 Index, bool bFireChangeNotify)
+	int32 Index, bool bFireChangeNotify, bool bAllowNativeCdo)
 {
 	const auto Path_ = TetherPropertyOps::ParsePath(PropertyPath);
 	UObject* Obj = nullptr;
 	TetherPropertyOps::FResolvedProp Resolved;
 	for (UObject* C : TetherPropertyOps::ResolveCandidates(ObjectOrClassPath))
 	{
+		// Native /Script/ CDO opt-in gate — see SetUPropertyFromExportText.
+		if (TetherPropertyOps::IsNativeScriptCdo(C) && !bAllowNativeCdo)
+		{
+			return TetherPropertyOps::RefuseNativeCdoWrite(C, TEXT("ArrayRemoveUProperty"));
+		}
 		const auto R = TetherPropertyOps::ResolvePath(C, Path_);
 		if (R.LeafProperty && R.LeafValuePtr) { Obj = C; Resolved = R; break; }
 	}
@@ -486,13 +535,18 @@ bool UTetherPropertyLibrary::ArrayRemoveUProperty(
 
 bool UTetherPropertyLibrary::ArrayClearUProperty(
 	const FString& ObjectOrClassPath, const FString& PropertyPath,
-	bool bFireChangeNotify)
+	bool bFireChangeNotify, bool bAllowNativeCdo)
 {
 	const auto Path_ = TetherPropertyOps::ParsePath(PropertyPath);
 	UObject* Obj = nullptr;
 	TetherPropertyOps::FResolvedProp Resolved;
 	for (UObject* C : TetherPropertyOps::ResolveCandidates(ObjectOrClassPath))
 	{
+		// Native /Script/ CDO opt-in gate — see SetUPropertyFromExportText.
+		if (TetherPropertyOps::IsNativeScriptCdo(C) && !bAllowNativeCdo)
+		{
+			return TetherPropertyOps::RefuseNativeCdoWrite(C, TEXT("ArrayClearUProperty"));
+		}
 		const auto R = TetherPropertyOps::ResolvePath(C, Path_);
 		if (R.LeafProperty && R.LeafValuePtr) { Obj = C; Resolved = R; break; }
 	}

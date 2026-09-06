@@ -493,6 +493,97 @@ def _preflight_or_skip(code: str,
         return [], []
 
 
+def _script_uses_stub_gated_functions(code: str) -> bool:
+    """True when the script calls any manifest function stamped min_engine.
+
+    Used only to warn in direct --endpoint mode, where discovery is skipped
+    and the engine version is unknown — the min_engine gate is then silent.
+    Accepts the same call forms preflight resolves: ``unreal.Lib.fn``,
+    aliases from ``from unreal import Lib`` / ``from tether import Short``
+    / ``X = unreal.Lib``. Best-effort, never raises: unparseable code or a
+    missing manifest simply returns False (the plain lint pass still
+    reports everything else it can).
+    """
+    try:
+        import ast as _ast
+        from tether_preflight import load_manifest, _collect_aliases
+
+        def _chain(node):
+            # <unreal_alias>.Lib.fn → ['unreal', 'Lib', 'fn']; shorter/other
+            # shapes (call results, subscripts) return [].
+            parts = []
+            cur = node
+            while isinstance(cur, _ast.Attribute):
+                parts.append(cur.attr)
+                cur = cur.value
+            if isinstance(cur, _ast.Name):
+                parts.append(cur.id)
+                parts.reverse()
+                return parts
+            return []
+
+        manifest = load_manifest()
+        if not manifest:
+            return False
+        tree = _ast.parse(code)
+        libraries = manifest.get("libraries", {})
+        enums = manifest.get("enums", {})
+        unreal_aliases, lib_aliases, _enum_aliases = _collect_aliases(tree, libraries, enums)
+        # _collect_aliases only registers "unreal" as an alias when an
+        # explicit `import unreal` exists. Scripts that use bare
+        # `unreal.Lib.fn(...)` or `X = unreal.Lib` without the import line
+        # leave it empty and pass 2 can't resolve assignments — treat
+        # "unreal" as implicitly imported when it's absent.
+        imports_unreal = any(
+            (isinstance(node, _ast.Import)
+             and any(a.name == "unreal" for a in node.names))
+            or (isinstance(node, _ast.ImportFrom) and node.module == "unreal")
+            for node in _ast.walk(tree)
+        )
+        if not unreal_aliases and not imports_unreal:
+            unreal_aliases = {"unreal"}
+            # Re-run pass 2 on top of the implicit alias so
+            # `L = unreal.TetherXxxLibrary` resolves like preflight does
+            # for imports.
+            for node in _ast.walk(tree):
+                if not isinstance(node, _ast.Assign):
+                    continue
+                if len(node.targets) != 1 or not isinstance(node.targets[0], _ast.Name):
+                    continue
+                chain = _chain(node.value)
+                if len(chain) != 2:
+                    continue
+                root, name = chain
+                if root != "unreal":
+                    continue
+                if name in libraries:
+                    lib_aliases[node.targets[0].id] = name
+
+        for node in _ast.walk(tree):
+            if not isinstance(node, _ast.Call):
+                continue
+            chain = _chain(node.func)
+            if len(chain) == 3:
+                root, lib, fn = chain
+                if root not in unreal_aliases:
+                    continue
+                if not (lib.startswith("Tether") and lib.endswith("Library")):
+                    continue
+            elif len(chain) == 2:
+                alias, fn = chain
+                lib = lib_aliases.get(alias)
+                if lib is None:
+                    continue
+            else:
+                continue
+            meta = (libraries.get(lib) or {}).get("functions", {}).get(fn)
+            if meta and meta.get("min_engine"):
+                return True
+        return False
+    except Exception:
+        return False
+
+
 def _audit(project_path: "str | None", mode: str, src: "str | None",
            code: str, ok: bool, err: "str | None") -> None:
     """Best-effort audit log of one exec attempt. Never raises."""
@@ -1346,16 +1437,42 @@ def cmd_list_editors(args):
 
 def _execute(args, code: str, mode: str = "exec", src: "str | None" = None) -> int:
     # Resolve the target FIRST so preflight can gate stub-backed functions
-    # against the discovered editor's engine version. resolve_target is
-    # cheap (cached UDP discovery / env parsing) and its failure modes are
-    # surfaced below with the same exit codes as before.
-    host, port, token, project_path, identity = resolve_target(args)
+    # against the discovered editor's engine version (discovery is cheap:
+    # cached UDP probe / env parsing). resolve_target failure modes:
+    #   • malformed direct-tuple / scope arguments → SystemExit(message)
+    #     (Python prints the message and exits 1 — an argument-shaped
+    #     failure, matching the old behavior);
+    #   • discovery finds no editor → same SystemExit, exit 1.
+    # One behavior change vs. the pre-reorder flow: "script has local
+    # preflight errors AND the editor isn't running" now surfaces as the
+    # discovery failure (exit 1) instead of the lint failure (exit 3).
+    # Preserving exit 3 there would mean running preflight with no engine
+    # version on every transport failure — a misleading half-lint (the
+    # version gate would be silently off). The discovery message itself
+    # names the no-editor case first, so the caller is never left guessing
+    # which failure came first.
+    try:
+        host, port, token, project_path, identity = resolve_target(args)
+    except SystemExit:
+        # No editor answered (or the direct-tuple was incomplete): let the
+        # discovery SystemExit carry the message + exit 1, as before.
+        raise
 
     # AST preflight: catch tether-call errors locally before any UE round-trip.
     # Warnings are printed but don't block. Errors short-circuit with exit 3.
     if not getattr(args, "no_preflight", False):
         # identity.engine_version is empty for direct --endpoint connections
         # (discovery skipped) — the version gate is then silently disabled.
+        # Say so once when the script actually calls a stub-gated function,
+        # instead of letting a stub's silent default look like success.
+        if not identity.engine_version and _script_uses_stub_gated_functions(code):
+            print(
+                "tether: engine version unknown (--endpoint direct mode); the "
+                "min_engine version gate is skipped and a stub-gated function "
+                "may silently return its default value — use discovery, or "
+                "verify the editor is 5.7+ before trusting the result",
+                file=sys.stderr,
+            )
         errs, warns = _preflight_or_skip(code, identity.engine_version)
         for w in warns:
             print(w, file=sys.stderr)

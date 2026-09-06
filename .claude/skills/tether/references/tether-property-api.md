@@ -7,6 +7,8 @@
 - You want the **full reflection picture** including `private:` fields, bare `UPROPERTY()` with no `Edit*`/`Visible*`/`Blueprint*`, raw EPropertyFlags decoded, full metadata map
 
 > ⚠️ **Privileged.** These APIs intentionally bypass UE editor's safety checks. The C++ access modifiers and `EditDefaultsOnly` flags exist for invariant protection — abusing `set_uproperty` on a `private:` field can corrupt class state. Read what you're touching first.
+>
+> **Native-CDO writes require an explicit opt-in (`allow_native_cdo=True`).** See "Native /Script/ CDO writes are gated" under Known gotchas.
 
 ---
 
@@ -57,7 +59,7 @@ v, ok = P.get_u_property_as_export_text("/Game/MyAsset", "Tags")
 
 ---
 
-## set_uproperty_from_export_text(object_or_class_path, property_path, value, fire_change_notify=True) -> bool
+## set_uproperty_from_export_text(object_or_class_path, property_path, value, fire_change_notify=True, allow_native_cdo=False) -> bool
 
 Write any UPROPERTY from export-text. Bypasses UE Python's "cannot be edited on instances" gate that blocks `EditDefaultsOnly` sub-fields of struct copies.
 
@@ -73,6 +75,7 @@ Behavior:
 - Wraps in `FScopedTransaction` (Ctrl+Z works)
 - Calls `Object->Modify()` to mark dirty
 - When `fire_change_notify=True`: calls `PostEditChangeChainProperty` with the full path chain → open editor windows refresh in real time
+- When the resolved target is a **native `/Script/` class CDO**: refused (returns `False` + a warning log naming the target and reason) unless `allow_native_cdo=True`. Blueprint CDOs (`Default__Foo_C`) are asset-backed and unaffected.
 
 **`fire_change_notify=False` is for batch edits** — call several writes with `False`, then a final write or no-op write with `True` so editor sees a single coherent update instead of intermediate states. Useful for tagged-union writes:
 
@@ -88,7 +91,7 @@ P.set_u_property_from_export_text(GE, "Modifiers[0].ModifierMagnitude.AttributeB
 
 ## array_append / array_remove / array_clear
 
-Container-mutation primitives for `TArray<T>` and `FGameplayTagContainer`.
+Container-mutation primitives for `TArray<T>` and `FGameplayTagContainer`. All three take the same trailing params as `set_uproperty_from_export_text` (`fire_change_notify=True`, `allow_native_cdo=False`) — the native-CDO gate applies identically.
 
 ```python
 # Append element (whole struct via export-text)
@@ -136,7 +139,7 @@ Functions accept three path formats:
 |---|---|---|
 | Asset content path | `/Game/Foo/Bar` | Blueprint asset → its CDO (primary), with the UBlueprint asset as fallback for asset-level fields like `ParentClass` |
 | Explicit object path | `/Game/Foo/Bar.Default__Bar_C` | That exact UObject |
-| UClass path | `/Script/Engine.Actor` | The class's CDO |
+| UClass path | `/Script/Engine.Actor` | The class's CDO — **a native CDO: writes require `allow_native_cdo=True`** |
 
 The **fallback** matters: when reading `ParentClass` on a Blueprint asset path, the read first tries the CDO (where `ParentClass` doesn't exist), then automatically retries on the UBlueprint asset (where `ParentClass` lives). This means asset-level fields and runtime-class fields are both reachable from the same path string.
 
@@ -159,6 +162,25 @@ When UE Python's `get_editor_property` says `"is protected and cannot be read"`,
 ### CDO writes need `save_asset` to persist
 
 Writes hit the in-memory CDO + transaction stack, but the `.uasset` file isn't touched until you call `unreal.EditorAssetLibrary.save_asset(asset_path)`. Closing the editor without saving discards the changes. (We hit this during smoke testing — the GE's modifier disappeared across an editor restart because it was added in-editor but never saved to disk.)
+
+### Native `/Script/` CDO writes are gated
+
+**All four write functions** (`set_uproperty_from_export_text`, `array_append_u_property`, `array_remove_u_property`, `array_clear_u_property`) refuse a write when the target resolves to the class-default object of a **native** class (`/Script/Engine.Actor`, `/Script/GameplayAbilities.GameplayEffect`, …) and you didn't pass `allow_native_cdo=True`. The call returns `False` and logs a warning naming the target and the reason.
+
+Why: a native CDO has no `.uasset` backing it — the write is **memory-only** (lost on editor restart, `save_asset` can't persist it anywhere) yet it **instantly affects every live instance of that class** in the process, because instances read defaults from the CDO. That combination (no persistence + global effect + invisible to the AssetRegistry) makes an accidental native-CDO write a silent cross-cutting mutation. The gate turns it into a deliberate choice.
+
+Blueprint CDOs (`/Game/Foo/Bar.Default__Bar_C`) are **not** gated — they live in a saved asset package, so the write is an ordinary asset edit (pair it with `save_asset` as above).
+
+Passing the opt-in from Python:
+
+```python
+P.set_u_property_from_export_text(
+    "/Script/GameplayAbilities.GameplayEffect",   # native class → its CDO
+    "DurationPolicy", "EGEDP_HasDuration",
+    fire_change_notify=True, allow_native_cdo=True)  # explicit opt-in
+```
+
+**Wrapper note:** the kwargs-only wrapper (`from tether import Property`) and the AST preflight are generated from `tether_manifest.json`, which snapshots UFUNCTION signatures at generation time. Until `python tools/gen_manifest.py` is re-run against a build with this parameter, `allow_native_cdo` isn't a known kwarg — passing it via the wrapper or a linted script raises an unknown-kwarg rejection. Default-parameter semantics keep existing calls correct in the meantime: not passing it means `False`, which is exactly the gated (safe) behavior. Raw `unreal.TetherPropertyLibrary` calls (or `--no-preflight`) bypass the manifest and can pass it immediately after the plugin rebuild.
 
 ### TMap / TSet write isn't in v1
 

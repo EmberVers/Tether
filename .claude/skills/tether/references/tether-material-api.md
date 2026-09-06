@@ -1489,7 +1489,19 @@ All mutations run inside a single `FScopedTransaction` so `Ctrl+Z` in the editor
 
 Python packages under `Plugin/Tether/Content/Python/material_templates/` generate complete AAA-aligned master materials from the M2 / M2.5 primitives. Each module exposes a ``build(...)`` entry point that calls `create_material` → `add_custom_expression` (when needed) → `apply_material_graph_ops` (sync compile) → optional `create_material_instance` + `preview_material`, and returns a stats + budget dict.
 
-Invoke from the host via ``tether.py exec-file -c`` or ``exec``. Templates assume they run inside UE's Python env.
+Invoke from the host via ``tether.py exec --stdin`` (heredoc). Templates assume they run inside UE's Python env, so the heredoc must add the plugin's ``Content/Python`` directory to ``sys.path`` first:
+
+```bash
+python tether.py exec --stdin <<'EOF'
+import sys
+sys.path.insert(0, r"<project>/Plugins/Tether/Content/Python")
+from material_templates import character_armor
+r = character_armor.build()
+print(r)
+EOF
+```
+
+For repeated runs of the same script, ``tether.py exec-file <path>`` also works (the file itself needs the ``sys.path.insert`` line).
 
 ### character_armor.build(...)
 
