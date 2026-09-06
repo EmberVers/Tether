@@ -4,6 +4,7 @@
 #include "HAL/Runnable.h"
 #include "HAL/ThreadSafeBool.h"
 #include "HAL/ThreadSafeCounter.h"
+#include "Containers/Map.h"
 #include "Interfaces/IPv4/IPv4Address.h"
 #include "Misc/ScopeLock.h"
 
@@ -114,4 +115,13 @@ private:
 
 	/** Currently-advertised TCP port. Atomic so SetTcpPort from any thread. */
 	FThreadSafeCounter CurrentTcpPort;
+
+	// N-F8（仅 discovery 线程访问）：同 request_id 去重表（时间戳）+ 每秒
+	// 响应预算，抑制伪造源地址的反射放大与重放。
+	// N-F8 (discovery-thread only): request_id dedup table (timestamps) plus
+	// a per-second response budget, suppressing spoofed-source reflection
+	// amplification and replays.
+	TMap<FString, double> RecentRequestIds;
+	double ResponseBudget = 0.0;
+	double LastRefillSeconds = 0.0;
 };

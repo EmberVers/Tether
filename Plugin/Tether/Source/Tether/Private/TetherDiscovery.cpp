@@ -20,6 +20,20 @@ namespace
 {
 	constexpr int32 MaxDatagramBytes = 64 * 1024;
 
+	// N-F8: request_id 去重窗口与每秒响应上限。discovery 响应泄露 project
+	// path/pid/engine version，且 probe 的源地址可被伪造；去重 + 限速把伪造
+	// 源地址的反射放大压到可忽略（单 request_id 最多一次响应，每秒至多
+	// MaxResponsesPerSecond 条）。HMAC 共享密钥留作协议 v3 演进。
+	// N-F8: request_id dedup window and per-second response cap. Responses
+	// disclose project path/pid/engine version and a probe's source address
+	// is spoofable; dedup + rate limiting collapses spoofed-source reflection
+	// to negligible (at most one response per request_id, at most
+	// MaxResponsesPerSecond responses overall). HMAC shared-secret is a
+	// protocol-v3 candidate and deliberately out of scope here.
+	constexpr double DedupWindowSeconds = 5.0;
+	constexpr int32 MaxResponsesPerSecond = 20;
+	constexpr int32 MaxTrackedRequestIds = 256;
+
 	bool MatchProjectFilter(const FString& Filter, const FString& ProjectName, const FString& ProjectPath)
 	{
 		if (Filter.IsEmpty() || Filter == TEXT("*"))
@@ -101,6 +115,11 @@ bool FTetherDiscoveryService::StartService()
 	}
 
 	bStopRequested = false;
+	// N-F8: reset dedup/rate state so a restart (hot reload) starts with a
+	// clean budget instead of inheriting the previous run's table.
+	RecentRequestIds.Reset();
+	ResponseBudget = (double)MaxResponsesPerSecond;
+	LastRefillSeconds = FPlatformTime::Seconds();
 	Thread.Reset(FRunnableThread::Create(this, TEXT("TetherDiscovery"), 0,
 		TPri_BelowNormal));
 
@@ -240,6 +259,56 @@ void FTetherDiscoveryService::HandleDatagram(const uint8* Bytes, int32 Length, c
 		return;
 	}
 
+	// N-F8: duplicate request_id within the window is dropped — a legitimate
+	// client probes once and retries with a fresh id, while a reflection
+	// attacker replays the same captured datagram.
+	const double Now = FPlatformTime::Seconds();
+	if (const double* LastSeen = RecentRequestIds.Find(RequestId))
+	{
+		if (Now - *LastSeen <= DedupWindowSeconds)
+		{
+			return;
+		}
+	}
+
+	// N-F8: responses are also capped per second. The rate state only tracks
+	// responses actually about to be sent, so unmatched filters never consume
+	// budget. Budget refill is continuous (token-ish) to stay smooth across
+	// window boundaries.
+	{
+		const double Elapsed = Now - LastRefillSeconds;
+		ResponseBudget = FMath::Min(
+			(double)MaxResponsesPerSecond,
+			ResponseBudget + Elapsed * (double)MaxResponsesPerSecond);
+		LastRefillSeconds = Now;
+		if (ResponseBudget < 1.0)
+		{
+			return;
+		}
+		--ResponseBudget;
+	}
+
+	// Record the id only when a response will actually go out; recording
+	// before the budget check would let rate-limited probes poison the table.
+	RecentRequestIds.Add(RequestId, Now);
+	if (RecentRequestIds.Num() > MaxTrackedRequestIds)
+	{
+		// Cheap pruning: drop the oldest entries until back at the cap. A
+		// linear scan is fine — the table only ever reaches this size under
+		// deliberate flooding, and the cap bounds it to a few hundred keys.
+		for (auto It = RecentRequestIds.CreateIterator(); It; ++It)
+		{
+			if (Now - It->Value > DedupWindowSeconds)
+			{
+				It.RemoveCurrent();
+				if (RecentRequestIds.Num() <= MaxTrackedRequestIds)
+				{
+					break;
+				}
+			}
+		}
+	}
+
 	FString Filter = TEXT("*");
 	const TSharedPtr<FJsonObject>* FilterObj = nullptr;
 	if (Root->TryGetObjectField(TEXT("filter"), FilterObj) && FilterObj && FilterObj->IsValid())
@@ -286,6 +355,11 @@ FString FTetherDiscoveryService::BuildResponseJson(const FString& RequestId) con
 	Root->SetStringField(TEXT("engine_version"), Config.EngineVersion);
 	Root->SetStringField(TEXT("tcp_bind"), Config.TcpBindAddress);
 	Root->SetNumberField(TEXT("tcp_port"), CurrentTcpPort.GetValue());
+	// X-TOKEN③: the fingerprint only MATCHES a strong random token; it is not
+	// a proof of secrecy. A weak (low-entropy) token can be brute-forced
+	// offline against this 8-byte SHA1 prefix, so tokens must come from a
+	// cryptographic RNG (the module generates them that way; user-supplied
+	// tokens via -TetherToken are the residual risk).
 	Root->SetStringField(TEXT("token_fingerprint"), Config.TokenFingerprint);
 	TArray<TSharedPtr<FJsonValue>> Capabilities;
 	for (const TCHAR* Capability : TetherProtocol::ExactCapabilities)

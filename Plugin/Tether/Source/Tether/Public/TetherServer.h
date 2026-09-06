@@ -6,13 +6,14 @@
 #include "Containers/Queue.h"
 #include "Containers/Ticker.h"
 #include "Async/Future.h"
-#include "Async/TaskGraphInterfaces.h"
 #include "Containers/Set.h"
 #include "Misc/ScopeLock.h"
 #include "Interfaces/IPv4/IPv4Address.h"
 
 class FTetherEditorHealthCache;
 class FTetherWorkAdmissionGate;
+class FRunnableThread;
+class FTetherClientWorker;
 
 /**
  * TCP server that listens for incoming connections and executes Python scripts
@@ -87,6 +88,13 @@ public:
 	/** 当前 exact-wire 协议版本。 / Current exact-wire protocol version. */
 	static int32 GetProtocolVersion();
 
+	/** Total deadline for one SendAll call. Responses are capped at ~8 MB of
+	 *  script output, which even a slow client drains well within this. */
+	static constexpr float SendTimeoutSeconds = 8.0f;
+
+	/** Upper bound for Result.Output / Result.Error (see DoPythonExec). */
+	static constexpr int32 MaxExecOutputChars = 8 * 1024 * 1024;
+
 	/**
 	 * Mark the editor as fully initialized (main frame created). Until this is
 	 * set, Python exec requests are rejected with a "not ready" error to avoid
@@ -95,7 +103,11 @@ public:
 	void SetEditorReady(bool bReady);
 	bool IsEditorReady() const;
 
+	/** True once Stop() has begun; workers use this to exit their IO loops. */
+	bool IsShuttingDown() const { return bShutdownRequested; }
+
 private:
+	friend class FTetherClientWorker;
 #if WITH_DEV_AUTOMATION_TESTS
 	friend class FTetherServerTestAccessor;
 
@@ -109,11 +121,31 @@ private:
 	/** Process a single client connection (runs on a worker thread). */
 	void HandleClient(FSocket* ClientSocket, const FString& EndpointStr);
 
+	/**
+	 * Build the standard error response frame (4-byte length prefix + JSON in
+	 * a single send) and send it before the caller closes the connection.
+	 * Used for every non-silent rejection path: invalid payload length, JSON
+	 * parse failure, capacity rejection, and start-window races.
+	 */
+	void SendErrorAndClose(FSocket* ClientSocket, const FString& RequestId,
+		const FString& ErrorCode, const FString& Message);
+
 	/** Read exactly NumBytes from the socket. Returns false on failure. */
 	bool RecvAll(FSocket* Socket, uint8* Buffer, int32 NumBytes, float TimeoutSeconds);
 
-	/** Send all bytes to the socket. Returns false on failure. */
-	bool SendAll(FSocket* Socket, const uint8* Buffer, int32 NumBytes);
+	/**
+	 * Send all bytes to the socket. Returns false on failure.
+	 * Bounded by SendTimeoutSeconds; a stalled reader releases the worker
+	 * instead of pinning it until kernel-level TCP timeouts.
+	 */
+	bool SendAll(FSocket* Socket, const uint8* Buffer, int32 NumBytes,
+		float TimeoutSeconds = SendTimeoutSeconds);
+
+	/**
+	 * Serialize a JSON response, prepend the 4-byte big-endian length prefix,
+	 * and send the frame in a single SendAll call. Returns false on failure.
+	 */
+	bool SendResponseFrame(FSocket* ClientSocket, const TSharedRef<FJsonObject>& Response);
 
 	/** Result of a Python exec request. */
 	struct FExecResult
@@ -121,6 +153,8 @@ private:
 		bool bSuccess = false;
 		FString Output;
 		FString Error;
+		/** True when Output/Error were truncated to MaxExecOutputChars (X-OUT). */
+		bool bTruncated = false;
 	};
 
 	/**
@@ -167,21 +201,27 @@ private:
 	FTSTicker::FDelegateHandle TickHandle;
 	bool bExecInFlight = false; // GameThread-only, no atomic needed
 
-	// client worker graph events 让 Stop 等待 closure 真正销毁，而不只是等待 raw counter 归零。
-	// Client worker graph events let Stop wait for closure destruction, not merely a raw counter reaching zero.
-	FGraphEventArray ClientWorkerTasks;
+	// per-connection worker 线程让 Stop 等待对象从 graph event 变为线程句柄；注册语义
+	// 由 admission gate 持锁快照（gate callback 内创建 + 入表），Close 后不再有新线程入表。
+	// Per-connection worker threads replace graph events; registration semantics stay with the
+	// admission gate (threads are created + registered inside the gate callback, so no thread
+	// can register after Close).
+	TSet<FTetherClientWorker*> ClientWorkerThreads;
+	FCriticalSection ClientWorkerThreadsLock;
 
 	// Connection limit (item #5). Atomic because we increment/decrement from
-	// the listener thread (accept path) and the task-graph worker (completion).
+	// the listener thread (accept path) and the client-worker thread (completion).
 	FThreadSafeCounter ActiveClients;
 	static constexpr int32 MaxConcurrentClients = 16;
 
-	// Tracks in-flight client sockets so Stop() can force-close them (item #6).
-	// Without this, each active HandleClient worker would sit in the 5 s idle
-	// RecvAll on shutdown, stretching ShutdownModule by up to that long per
-	// client.
-	FCriticalSection ActiveSocketsLock;
-	TSet<FSocket*> ActiveSockets;
+	// Stop() 的跨线程取消标志（N-F1）：RecvAll/SendAll 每轮循环检查，true 即立刻
+	// 放弃；worker 线程随后退出并独占销毁自己的 socket。禁止 Stop 直接 close
+	// worker 正阻塞的 socket（Windows 上属于未定义行为）。
+	// Cross-thread cancellation flag for Stop() (N-F1): RecvAll/SendAll check it
+	// at the top of every loop iteration and bail immediately; the worker thread
+	// then exits and exclusively destroys its own socket. Stop() must never
+	// close a socket that a worker is blocked on (documented UB on Windows).
+	FThreadSafeBool bShutdownRequested = false;
 
 	// PIE transition guard (item #11). Flag is True during the unsafe
 	// startup (BeginPIE → PostPIEStarted) and shutdown (PrePIEEnded →

@@ -11,6 +11,8 @@
 #include "Serialization/JsonWriter.h"
 #include "Async/Async.h"
 #include "SocketSubsystem.h"
+#include "HAL/Runnable.h"
+#include "HAL/RunnableThread.h"
 #include "Misc/Base64.h"
 #include "Misc/DateTime.h"
 #include "Misc/SecureHash.h"
@@ -51,6 +53,63 @@ struct FTetherServer::FPendingExec final
 
 	TTetherCancellableWork<FExecResult> Work;
 	FString RequestId;
+};
+
+/**
+ * 每连接专用 worker 线程（N-F4）。此前每个连接占一个 FFunctionGraphTask 的
+ * AnyBackgroundThreadNormalTask 线程（HandleClient 最长阻塞 300s），16 个连接
+ * 就能钉死整个 TG 后台线程池。专用 FRunnableThread 线程与阻塞 IO 天然匹配：
+ * 互不占用任务图，退出由 FTetherServer::bShutdownRequested 驱动。
+ *
+ * Per-connection dedicated worker thread (N-F4). Previously each connection
+ * pinned an AnyBackgroundThreadNormalTask task-graph thread for the (up to
+ * 300 s) lifetime of HandleClient, so 16 connections could starve the whole
+ * background thread pool. A dedicated FRunnableThread matches blocking IO
+ * naturally: task-graph threads stay free, and shutdown is driven by
+ * FTetherServer::bShutdownRequested.
+ */
+class FTetherClientWorker final : public FRunnable
+{
+public:
+	FTetherClientWorker(FTetherServer* InServer, FSocket* InClientSocket, const FString& InEndpointStr)
+		: Server(InServer)
+		, ClientSocket(InClientSocket)
+		, EndpointStr(InEndpointStr)
+	{
+	}
+
+	~FTetherClientWorker()
+	{
+		// Ownership: the socket is closed and destroyed here, and ONLY here.
+		// Stop() never force-closes a socket a worker is blocked on (Windows
+		// documents cross-thread closesocket on a blocked handle as
+		// unreliable). If the thread failed to start, Run() never touched the
+		// socket, so the destructor is still the sole cleanup point.
+		if (ClientSocket != nullptr)
+		{
+			if (ISocketSubsystem* Subsystem = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM))
+			{
+				Subsystem->DestroySocket(ClientSocket);
+			}
+			ClientSocket = nullptr;
+		}
+	}
+
+	// FRunnable
+	virtual uint32 Run() override
+	{
+		Server->HandleClient(ClientSocket, EndpointStr);
+		return 0;
+	}
+
+	// worker 自持线程句柄；Kill(true) 等待 Run() 返回并销毁 this。
+	// The worker owns its thread handle; Kill(true) waits for Run() to return and destroys this.
+	TUniquePtr<FRunnableThread> Thread;
+
+private:
+	FTetherServer* Server;
+	FSocket* ClientSocket;
+	FString EndpointStr;
 };
 
 // Modal-dialog inspection and actions deliberately live outside the normal
@@ -672,6 +731,21 @@ bool FTetherServer::Start(const FStartConfig& Config)
 		}
 	}
 
+	// N-F10①：bIsRunning 与 admission gate 在 listener 存活后立即开启（仍在
+	// identity/ticker/delegate 注册之前）。窗口期内进入的连接不再被静默丢弃：
+	// exec 请求由 bEditorReady gate 拒绝（有错误帧），ping/status 等只读命令
+	// 可以直接得到响应。窗口期入队的 exec 在 ticker 注册后被正常消费，或被
+	// Stop 经取消状态机拒绝。
+	// N-F10①: flip bIsRunning and open the admission gate right after the
+	// listener is alive (still before identity/ticker/delegate registration).
+	// Connections accepted in the window are no longer dropped silently: exec
+	// requests are rejected by the bEditorReady gate (with an error frame),
+	// read-only commands answer immediately, and execs enqueued before the
+	// ticker exists are consumed once it registers — or rejected by Stop
+	// through the cancellation state machine.
+	bIsRunning = true;
+	WorkAdmission->Open();
+
 	// 身份只在 listener 成功建立后生成；每次成功 Start 都得到新的 UUID。
 	// Identity is generated only after the listener succeeds; every successful Start receives a fresh UUID.
 	const FTetherEndpointIdentity Identity = FTetherEndpointIdentity::Create();
@@ -727,8 +801,10 @@ bool FTetherServer::Start(const FStartConfig& Config)
 		bPieTransitionActive = false;
 	});
 
-	bIsRunning = true;
-	WorkAdmission->Open();
+	// bIsRunning / WorkAdmission 已经在 listener 创建成功后置位（N-F10①）。
+	// 此处保留 idempotent 收尾日志；早退路径（初始化中途失败）由 bIsRunning=false 兜底。
+	// bIsRunning / WorkAdmission were flipped right after the listener came up (N-F10①).
+	// Only the summary log remains here; early-failure paths are covered by bIsRunning=false.
 	UE_LOG(LogTether, Log, TEXT("Listening on %s:%d%s"),
 		*BindAddressStr, ListenPort,
 		HasToken() ? TEXT(" (token auth enforced)") : TEXT(""));
@@ -737,25 +813,40 @@ bool FTetherServer::Start(const FStartConfig& Config)
 
 void FTetherServer::Stop()
 {
-	if (!bIsRunning && !WorkAdmission->IsOpen())
+	if (!bIsRunning && !WorkAdmission->IsOpen() && !bShutdownRequested)
 	{
 		return;
 	}
 	checkf(IsInGameThread(), TEXT("Tether Server must stop on the GameThread"));
 
-	// 1. 先原子关闭 work admission；Close 返回后，accept/enqueue callback 均已离开。
-	// First close work admission atomically; after Close returns, accept/enqueue callbacks have left.
-	WorkAdmission->Close();
-	bIsRunning = false;
-	const FGraphEventArray WorkersToWait = ClientWorkerTasks;
+	// 1. 置位取消标志：RecvAll/SendAll 在每轮 50ms Wait 之前检查并立刻退出，
+	//    worker 线程随后收尾并独占销毁自己的 socket。绝不跨线程 close 一个
+	//    worker 正阻塞的 socket（Windows 文档化 UB，N-F1）。
+	// Set the cancellation flag first: RecvAll/SendAll check it before every
+	// 50 ms Wait and bail immediately, after which each worker thread unwinds
+	// and exclusively destroys its own socket. Stop() never force-closes a
+	// socket a worker is blocked on (documented UB on Windows, N-F1).
+	bShutdownRequested = true;
 
-	// 2. Stop accepting new connections.
+	// 2. 先原子关闭 work admission；Close 返回后，accept/enqueue callback 均已离开，
+	//    gate 持锁期间创建的 worker 线程也已全部进入本地的等待快照。
+	// Close work admission atomically; after Close returns, accept/enqueue callbacks have
+	// left, and every worker thread registered under the gate lock is in the local snapshot.
+	TArray<FTetherClientWorker*> WorkersToWait;
+	{
+		WorkAdmission->Close();
+		FScopeLock Lock(&ClientWorkerThreadsLock);
+		WorkersToWait = ClientWorkerThreads.Array();
+	}
+	bIsRunning = false;
+
+	// 3. Stop accepting new connections.
 	if (Listener.IsValid())
 	{
 		Listener.Reset();
 	}
 
-	// 3. Unregister GameThread ticker and editor delegates (items #11 #12).
+	// 4. Unregister GameThread ticker and editor delegates (items #11 #12).
 	if (TickHandle.IsValid())
 	{
 		FTSTicker::GetCoreTicker().RemoveTicker(TickHandle);
@@ -790,7 +881,7 @@ void FTetherServer::Stop()
 		PieEndHandle.Reset();
 	}
 
-	// 4. 通过共同状态机取消 queued exec；gate 已关闭，所以 drain 后不能再有新 item。
+	// 5. 通过共同状态机取消 queued exec；gate 已关闭，所以 drain 后不能再有新 item。
 	// Cancel queued execs through the shared state machine; the closed gate prevents post-drain admission.
 	TSharedPtr<FPendingExec, ESPMode::ThreadSafe> Pending;
 	while (ExecQueue.Dequeue(Pending) && Pending.IsValid())
@@ -802,33 +893,33 @@ void FTetherServer::Stop()
 		Pending->Work.TryCancel(MoveTemp(ShutdownResult), ObservedState);
 	}
 
-	// 5. Force-close active client sockets so HandleClient's RecvAll/SendAll unblocks.
+	// 6. 等待每个 worker 线程收尾。Kill(true) 联合等待线程退出与 FRunnable 析构
+	//    （socket 销毁发生在 worker 自己的 context，参考 TetherDiscovery 的成熟模式）。
+	//    取消标志在步骤 1 已置位，worker 最迟 50 ms 内脱离 IO 循环——GameThread
+	//    的等待从"最多 30 s/连接"降到毫秒级。
+	// Wait for each worker thread to unwind. Kill(true) joins the thread and
+	// destroys the FRunnable (the socket is destroyed on the worker's own
+	// context; same proven pattern as TetherDiscovery). The cancellation flag
+	// was set in step 1, so workers leave their IO loops within one 50 ms
+	// poll — the GameThread wait drops from "up to 30 s per connection" to
+	// milliseconds.
+	for (FTetherClientWorker* Worker : WorkersToWait)
 	{
-		FScopeLock Lock(&ActiveSocketsLock);
-		for (FSocket* S : ActiveSockets)
+		if (Worker && Worker->Thread.IsValid())
 		{
-			if (S)
-			{
-				S->Close();
-			}
+			Worker->Thread->Kill(/*bShouldWait=*/true);
 		}
 	}
-
-	// 6. Module unload 不能留下任何 plugin-owned closure。等待完整 graph event 会覆盖
-	// lambda body、capture destructor 与 bookkeeping；GameThread wait 同时泵送 modal/ping task。
-	// Module unload cannot leave plugin-owned closures behind. Waiting on graph events covers the
-	// lambda body, capture destruction, and bookkeeping while the GameThread pumps modal/ping tasks.
-	if (WorkersToWait.Num() > 0)
 	{
-		FTaskGraphInterface::Get().WaitUntilTasksComplete(WorkersToWait, ENamedThreads::GameThread);
+		FScopeLock Lock(&ClientWorkerThreadsLock);
+		ClientWorkerThreads.Empty();
 	}
-	FTaskGraphInterface::Get().ProcessThreadUntilIdle(ENamedThreads::GameThread);
-	ClientWorkerTasks.Reset();
 
 	checkf(ActiveClients.GetValue() == 0,
-		TEXT("Tether client graph events completed with %d active clients"),
+		TEXT("Tether client workers completed with %d active clients"),
 		ActiveClients.GetValue());
 	EditorHealthCache->Reset();
+	bShutdownRequested = false;
 	UE_LOG(LogTether, Log, TEXT("Stop(): all client workers and GameThread closures drained cleanly"));
 }
 
@@ -866,17 +957,12 @@ bool FTetherServer::OnConnectionAccepted(FSocket* ClientSocket, const FIPv4Endpo
 	const FString EndpointStr = ClientEndpoint.ToString();
 	bool bAccepted = false;
 
-	// gate callback 同时完成容量检查、graph-event 注册与 task dispatch；Stop::Close
-	// 返回后不会出现“已快照 worker 列表之后才注册”的尾随 closure。
-	// The gate callback performs capacity check, graph-event registration, and dispatch together;
-	// after Stop::Close returns, no trailing closure can register after the worker snapshot.
+	// gate callback 同时完成容量检查、worker 注册与线程创建；Stop::Close
+	// 返回后不会出现“已快照 worker 列表之后才注册”的尾随线程。
+	// The gate callback performs capacity check, worker registration, and thread creation together;
+	// after Stop::Close returns, no trailing worker can register after the snapshot.
 	const bool bAdmissionOpen = WorkAdmission->TryAdmit([this, ClientSocket, EndpointStr, &bAccepted]()
 	{
-		ClientWorkerTasks.RemoveAll([](const FGraphEventRef& Task)
-		{
-			return !Task.IsValid() || Task->IsComplete();
-		});
-
 		const int32 Active = ActiveClients.Increment();
 		if (Active > MaxConcurrentClients)
 		{
@@ -884,53 +970,109 @@ bool FTetherServer::OnConnectionAccepted(FSocket* ClientSocket, const FIPv4Endpo
 			UE_LOG(LogTether, Warning,
 				TEXT("[conn] rejecting %s — at concurrency limit (%d/%d)"),
 				*EndpointStr, Active - 1, MaxConcurrentClients);
+			// 容量拒绝发生在任何 request 解析之前（尚无 RequestId）；回最小
+			// 错误帧让客户端看到明确拒绝而不是静默 EOF（N-F6）。
+			// Capacity is rejected before any request parsing (no RequestId yet);
+			// answer with a minimal error frame so the client sees an explicit
+			// refusal instead of a silent EOF (N-F6).
+			SendErrorAndClose(ClientSocket, TEXT("<unknown>"), TEXT("capacity"),
+				FString::Printf(TEXT("server at concurrency limit (%d clients)"), MaxConcurrentClients));
 			return;
 		}
 
 		UE_LOG(LogTether, Verbose,
 			TEXT("[conn] accepted %s (active=%d)"), *EndpointStr, Active);
 
-		TSharedRef<FTetherServer, ESPMode::ThreadSafe> Self = AsShared();
-		FGraphEventRef WorkerTask = FFunctionGraphTask::CreateAndDispatchWhenReady(
-			[Self, ClientSocket, EndpointStr]()
-			{
-				// Register socket so Stop() can force-close us (item #6).
-				{
-					FScopeLock Lock(&Self->ActiveSocketsLock);
-					Self->ActiveSockets.Add(ClientSocket);
-				}
+		// Disable Nagle on the accepted connection (N-F3): responses are a
+		// single request/reply pair, and header/body going out as one write
+		// would otherwise sit in the sender queue until Nagle+delayed-ACK
+		// interplay releases it. FSocketBSD implements SetNoDelay via
+		// TCP_NODELAY on the accepted socket.
+		ClientSocket->SetNoDelay(true);
 
-				Self->HandleClient(ClientSocket, EndpointStr);
+		// 每连接一个专用 FRunnableThread（N-F4）；线程对象由 unique 所有权持有，
+		// Stop 的 Kill(true) 负责联接与销毁（含 socket 的独占 close）。
+		// One dedicated FRunnableThread per connection (N-F4); the worker holds
+		// unique ownership of the socket and Stop's Kill(true) joins + destroys it.
+		FTetherClientWorker* Worker = new FTetherClientWorker(this, ClientSocket, EndpointStr);
+		Worker->Thread.Reset(FRunnableThread::Create(
+			Worker, TEXT("TetherClientWorker"), 0, TPri_Normal));
+		if (!Worker->Thread.IsValid())
+		{
+			// Thread creation failure: the worker destructor destroys the
+			// socket (sole ownership), and we free the capacity slot.
+			UE_LOG(LogTether, Error,
+				TEXT("[conn] failed to spawn worker thread for %s"), *EndpointStr);
+			delete Worker;
+			ActiveClients.Decrement();
+			return;
+		}
 
-				{
-					FScopeLock Lock(&Self->ActiveSocketsLock);
-					Self->ActiveSockets.Remove(ClientSocket);
-				}
-
-				ISocketSubsystem* SocketSubsystem = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM);
-				if (SocketSubsystem)
-				{
-					SocketSubsystem->DestroySocket(ClientSocket);
-				}
-				Self->ActiveClients.Decrement();
-			},
-			TStatId(),
-			nullptr,
-			ENamedThreads::AnyBackgroundThreadNormalTask);
-		ClientWorkerTasks.Add(MoveTemp(WorkerTask));
+		FScopeLock Lock(&ClientWorkerThreadsLock);
+		ClientWorkerThreads.Add(Worker);
 		bAccepted = true;
 	});
 
+	if (!bAdmissionOpen)
+	{
+		// Start/Stop 竞态路径（N-F10②）：gate 已关说明 server 正在停机；回明确
+		// 错误帧而不是静默断连。socket 未被任何 worker 接管，就地回收。
+		// Start/Stop race path (N-F10②): a closed gate means the server is
+		// shutting down; answer with an explicit error frame instead of a
+		// silent disconnect. No worker owns this socket, so reclaim it here.
+		SendErrorAndClose(ClientSocket, TEXT("<unknown>"), TEXT("shutting_down"),
+			TEXT("server is shutting down"));
+	}
+
 	return bAdmissionOpen && bAccepted;
+}
+
+bool FTetherServer::SendResponseFrame(FSocket* ClientSocket, const TSharedRef<FJsonObject>& Response)
+{
+	FString ResponseStr;
+	TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&ResponseStr);
+	FJsonSerializer::Serialize(Response, Writer);
+
+	const FTCHARToUTF8 Utf8Response(*ResponseStr);
+	const int32 ResponseLen = Utf8Response.Length();
+
+	// Prepend the 4-byte big-endian length prefix and send the whole frame
+	// in one SendAll call (N-F3): one syscall, and no Nagle window between
+	// the header and body writes.
+	TArray<uint8> Frame;
+	Frame.Reserve(4 + ResponseLen);
+	Frame.Add((uint8)((ResponseLen >> 24) & 0xFF));
+	Frame.Add((uint8)((ResponseLen >> 16) & 0xFF));
+	Frame.Add((uint8)((ResponseLen >> 8) & 0xFF));
+	Frame.Add((uint8)(ResponseLen & 0xFF));
+	Frame.Append((const uint8*)Utf8Response.Get(), ResponseLen);
+
+	return SendAll(ClientSocket, Frame.GetData(), Frame.Num());
+}
+
+void FTetherServer::SendErrorAndClose(FSocket* ClientSocket, const FString& RequestId,
+	const FString& ErrorCode, const FString& Message)
+{
+	TSharedRef<FJsonObject> Response = MakeShared<FJsonObject>();
+	Response->SetStringField(TEXT("id"), RequestId);
+	Response->SetBoolField(TEXT("success"), false);
+	Response->SetStringField(TEXT("output"), TEXT(""));
+	Response->SetStringField(TEXT("error"), Message);
+	Response->SetStringField(TEXT("error_code"), ErrorCode);
+	SendResponseFrame(ClientSocket, Response);
 }
 
 void FTetherServer::HandleClient(FSocket* ClientSocket, const FString& EndpointStr)
 {
 	// One request-response per connection. tether.py opens a fresh socket
-	// per call; keep-alive would tie worker threads up in idle waits and
-	// saturate the AsyncTask pool under high request rates.
+	// per call; keep-alive would tie worker threads up in idle waits.
+	// N-F10②: with bIsRunning/Open now flipped right after the listener comes
+	// up, this branch is only reachable during a Stop() race; answer with an
+	// explicit error frame instead of a silent EOF.
 	if (!bIsRunning)
 	{
+		SendErrorAndClose(ClientSocket, TEXT("<unknown>"), TEXT("shutting_down"),
+			TEXT("server is shutting down"));
 		return;
 	}
 	const double T0 = FPlatformTime::Seconds();
@@ -973,6 +1115,10 @@ void FTetherServer::HandleClient(FSocket* ClientSocket, const FString& EndpointS
 		UE_LOG(LogTether, Warning,
 			TEXT("[%s] invalid payload length %u (max %d) — closing"),
 			*EndpointStr, PayloadLen, TetherLimits::MaxRequestBytes);
+		// N-F6: reject with an error frame instead of a silent disconnect.
+		SendErrorAndClose(ClientSocket, TEXT("<missing>"), TEXT("bad_length"),
+			FString::Printf(TEXT("invalid payload length %u (max %d)"),
+				PayloadLen, TetherLimits::MaxRequestBytes));
 		return;
 	}
 
@@ -1007,6 +1153,10 @@ void FTetherServer::HandleClient(FSocket* ClientSocket, const FString& EndpointS
 		UE_LOG(LogTether, Warning,
 			TEXT("[%s] JSON parse failed (payload=%u bytes)"),
 			*EndpointStr, PayloadLen);
+		// N-F6: JSON 失败时回帧最划算——客户端通常只错一个引号。
+		// N-F6: an error frame pays off most here — clients usually only miss a quote.
+		SendErrorAndClose(ClientSocket, TEXT("<missing>"), TEXT("bad_json"),
+			FString::Printf(TEXT("JSON parse failed (payload=%u bytes)"), PayloadLen));
 		return;
 	}
 
@@ -1051,20 +1201,9 @@ void FTetherServer::HandleClient(FSocket* ClientSocket, const FString& EndpointS
 			Response->SetStringField(TEXT("output"), TEXT(""));
 			Response->SetStringField(TEXT("error"), TEXT("unauthorized: missing or invalid token"));
 
-			FString RespJson;
-			TSharedRef<TJsonWriter<>> RespWriter = TJsonWriterFactory<>::Create(&RespJson);
-			FJsonSerializer::Serialize(Response, RespWriter);
-
-			const FTCHARToUTF8 RespUtf8(*RespJson);
-			const int32 RespLen = RespUtf8.Length();
-			uint8 AuthRespLenBuf[4] = {
-				(uint8)((RespLen >> 24) & 0xFF),
-				(uint8)((RespLen >> 16) & 0xFF),
-				(uint8)((RespLen >> 8) & 0xFF),
-				(uint8)(RespLen & 0xFF),
-			};
-			SendAll(ClientSocket, AuthRespLenBuf, 4);
-			SendAll(ClientSocket, (const uint8*)RespUtf8.Get(), RespLen);
+			// N-F3: header + body in one SendAll — no Nagle/delayed-ACK window
+			// between the two writes.
+			SendResponseFrame(ClientSocket, Response);
 
 			UE_LOG(LogTether, Warning,
 				TEXT("[%s] unauthorized request id=%s (bad token)"),
@@ -1372,6 +1511,12 @@ void FTetherServer::HandleClient(FSocket* ClientSocket, const FString& EndpointS
 			Response->SetBoolField(TEXT("success"), Result.bSuccess);
 			Response->SetStringField(TEXT("output"), Result.Output);
 			Response->SetStringField(TEXT("error"), Result.Error);
+			// X-OUT: signal truncation so the agent knows to page output down
+			// instead of assuming the script printed everything it saw.
+			if (Result.bTruncated)
+			{
+				Response->SetBoolField(TEXT("truncated"), true);
+			}
 			Response->SetBoolField(TEXT("ready"), true);
 		}
 	}
@@ -1398,32 +1543,14 @@ void FTetherServer::HandleClient(FSocket* ClientSocket, const FString& EndpointS
 		}
 	}
 
-	// 5. Serialize and send response
-	FString ResponseStr;
-	TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&ResponseStr);
-	FJsonSerializer::Serialize(Response, Writer);
-
-	FTCHARToUTF8 Utf8Response(*ResponseStr);
-	int32 ResponseLen = Utf8Response.Length();
-
-	uint8 RespLenBuf[4];
-	RespLenBuf[0] = (ResponseLen >> 24) & 0xFF;
-	RespLenBuf[1] = (ResponseLen >> 16) & 0xFF;
-	RespLenBuf[2] = (ResponseLen >> 8) & 0xFF;
-	RespLenBuf[3] = ResponseLen & 0xFF;
-
-	if (!SendAll(ClientSocket, RespLenBuf, 4))
+	// 5. Serialize and send response — header + body in a single SendAll
+	// (N-F3: halves syscalls and removes the Nagle/delayed-ACK exposure
+	// between the two writes).
+	if (!SendResponseFrame(ClientSocket, Response))
 	{
 		UE_LOG(LogTether, Warning,
-			TEXT("[%s] send response header failed (id=%s cmd=%s)"),
+			TEXT("[%s] send response failed (id=%s cmd=%s)"),
 			*EndpointStr, *RequestId, *WireCommand);
-		return;
-	}
-	if (!SendAll(ClientSocket, (const uint8*)Utf8Response.Get(), ResponseLen))
-	{
-		UE_LOG(LogTether, Warning,
-			TEXT("[%s] send response body failed (id=%s cmd=%s len=%d)"),
-			*EndpointStr, *RequestId, *WireCommand, ResponseLen);
 		return;
 	}
 
@@ -1673,7 +1800,7 @@ FTetherServer::FExecResult FTetherServer::DoPythonExec(const FString& Script)
 
 		Result.Output = DecodeB64ToUtf8FString(OutB64);
 		Result.Error = DecodeB64ToUtf8FString(ErrB64);
-		Result.bSuccess = bExecSuccess && Result.Error.IsEmpty();
+		Result.bSuccess = bExecSuccess;
 	}
 	else
 	{
@@ -1685,6 +1812,25 @@ FTetherServer::FExecResult FTetherServer::DoPythonExec(const FString& Script)
 
 	Result.Output.TrimEndInline();
 	Result.Error.TrimEndInline();
+
+	// X-OUT: script output has no natural upper bound while the inbound script
+	// is capped at MaxRequestBytes; an unbounded reply either OOMs the editor
+	// (3-5x amplification through StringIO + base64 + JSON) or exceeds the
+	// client's frame limit AFTER the script's side effects happened, which
+	// reports "protocol error" for a script that actually ran. Cap at
+	// MaxExecOutputChars; FString::Left cuts on TCHAR boundaries (UTF-16
+	// code units), so it never splits a UTF-8/UTF-16 sequence in the wire
+	// encoding. bTruncated rides along in the response as "truncated": true.
+	if (Result.Output.Len() > MaxExecOutputChars)
+	{
+		Result.Output = Result.Output.Left(MaxExecOutputChars);
+		Result.bTruncated = true;
+	}
+	if (Result.Error.Len() > MaxExecOutputChars)
+	{
+		Result.Error = Result.Error.Left(MaxExecOutputChars);
+		Result.bTruncated = true;
+	}
 	return Result;
 }
 
@@ -1700,6 +1846,14 @@ bool FTetherServer::RecvAll(FSocket* Socket, uint8* Buffer, int32 NumBytes, floa
 
 	while (BytesRead < NumBytes)
 	{
+		// N-F1: shutdown cancellation outranks every other exit below — a
+		// blocked RecvAll leaves within one 50 ms Wait poll after Stop()
+		// sets the flag, instead of spinning to the full deadline.
+		if (bShutdownRequested)
+		{
+			return false;
+		}
+
 		if (FPlatformTime::Seconds() - StartTime > TimeoutSeconds)
 		{
 			return false;
@@ -1761,18 +1915,58 @@ bool FTetherServer::RecvAll(FSocket* Socket, uint8* Buffer, int32 NumBytes, floa
 	return true;
 }
 
-bool FTetherServer::SendAll(FSocket* Socket, const uint8* Buffer, int32 NumBytes)
+bool FTetherServer::SendAll(FSocket* Socket, const uint8* Buffer, int32 NumBytes, float TimeoutSeconds)
 {
 	int32 BytesSent = 0;
+	const double StartTime = FPlatformTime::Seconds();
 
 	while (BytesSent < NumBytes)
 	{
+		// N-F1: shutdown cancellation outranks the deadline — blocked sends
+		// release the worker within one 50 ms Wait poll after Stop().
+		if (bShutdownRequested)
+		{
+			return false;
+		}
+
+		if (FPlatformTime::Seconds() - StartTime > TimeoutSeconds)
+		{
+			// N-F2: a stalled (zero-window) reader must not pin the worker
+			// until kernel-level TCP timeouts. Drop the response; the client
+			// sees a short read/EOF and retries on its own terms.
+			UE_LOG(LogTether, Warning,
+				TEXT("SendAll timed out after %.1fs (%d/%d bytes sent) — giving up"),
+				TimeoutSeconds, BytesSent, NumBytes);
+			return false;
+		}
+
+		// Select-level writability probe (N-F2): only call Send when the
+		// socket can actually accept more bytes, mirroring RecvAll's
+		// readability probe. Keeps the loop responsive to both cancellation
+		// and the deadline at 50 ms granularity.
+		const bool bWritable = Socket->Wait(
+			ESocketWaitConditions::WaitForWrite,
+			FTimespan::FromMilliseconds(50));
+		if (!bWritable)
+		{
+			continue; // Keep checking until TimeoutSeconds elapses.
+		}
+
 		int32 Sent = 0;
 		if (!Socket->Send(Buffer + BytesSent, NumBytes - BytesSent, Sent))
 		{
 			return false;
 		}
-		BytesSent += Sent;
+		if (Sent > 0)
+		{
+			BytesSent += Sent;
+		}
+		else
+		{
+			// Zero-byte sends on a healthy socket are transient; avoid a tight
+			// spin while still respecting the deadline above.
+			FPlatformProcess::Sleep(0.001f);
+		}
 	}
 
 	return true;

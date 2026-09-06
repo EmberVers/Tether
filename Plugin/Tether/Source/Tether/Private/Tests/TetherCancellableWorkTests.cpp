@@ -21,7 +21,7 @@ public:
 
 	static int32 GetTrackedWorkerCount(const FTetherServer& Server)
 	{
-		return Server.ClientWorkerTasks.Num();
+		return Server.ClientWorkerThreads.Num();
 	}
 
 	static bool EnqueueExec(

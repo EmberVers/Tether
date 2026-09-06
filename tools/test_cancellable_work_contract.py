@@ -63,16 +63,25 @@ class CancellableWorkSourceContractTests(unittest.TestCase):
     def test_shutdown_closes_admission_and_drains_plugin_closures(self):
         self.assertGreaterEqual(self.server.count("WorkAdmission->TryAdmit"), 2)
         self.assertIn("WorkAdmission->Close();", self.server)
-        self.assertIn("WaitUntilTasksComplete", self.server)
-        self.assertIn("ProcessThreadUntilIdle", self.server)
+        # N-F4: per-connection workers moved from task-graph tasks to dedicated
+        # FRunnableThreads; Stop() joins each via Kill(true) inside the gate
+        # snapshot instead of WaitUntilTasksComplete.
+        self.assertIn("Thread->Kill(/*bShouldWait=*/true)", self.server)
+        self.assertIn("while (ExecQueue.Dequeue(Pending))", self.server)
         self.assertNotIn("still active after 3s drain timeout", self.server)
 
     def test_background_worker_owns_thread_safe_server_lifetime(self):
+        # Worker threads are joined synchronously in Stop() before the module
+        # drops its TSharedPtr<FTetherServer> (ShutdownModule: Stop() then
+        # Server.Reset()), so the raw FTetherServer* in FTetherClientWorker
+        # cannot outlive the server. GameThread closures dispatched from
+        # worker context still capture AsShared() refs for lifetime safety.
         self.assertIn(
-            "TSharedRef<FTetherServer, ESPMode::ThreadSafe> Self = AsShared();",
+            "TSharedRef<FTetherServer, ESPMode::ThreadSafe> ServerOwner = AsShared();",
             self.server,
         )
-        self.assertIn("FFunctionGraphTask::CreateAndDispatchWhenReady", self.server)
+        self.assertIn("FRunnableThread::Create(", self.server)
+        self.assertNotIn("FFunctionGraphTask::CreateAndDispatchWhenReady", self.server)
         self.assertNotIn("[this, ClientSocket, EndpointStr]", self.server)
 
     def test_exec_ticker_skips_backlog_before_running_one_body(self):

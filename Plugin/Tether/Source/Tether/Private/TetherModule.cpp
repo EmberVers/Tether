@@ -101,7 +101,10 @@ namespace
 
 	/** sha1(token) first 8 bytes, lowercase hex. Empty input → empty output.
 	 *  Not cryptographic — only used so clients can verify "I'm talking to the
-	 *  editor that holds this token" without leaking the token itself. */
+	 *  editor that holds this token" without leaking the token itself.
+	 *  X-TOKEN③: this only MATCHES a strong random token; a weak (low-entropy)
+	 *  token can be brute-forced offline against this 8-byte prefix, so the
+	 *  token must always come from a cryptographic RNG. */
 	FString TokenFingerprint(const FString& Token)
 	{
 		if (Token.IsEmpty())
@@ -126,6 +129,11 @@ void FTetherModule::StartupModule()
 
 	// Map /Plugin/Tether/ -> this plugin's Shaders/ dir so UMaterialExpressionCustom
 	// nodes can #include "/Plugin/Tether/TetherSnippets.ush" and friends.
+	// N-F9: UE 5.7's RenderCore has no RemoveShaderSourceDirectoryMapping (only
+	// ResetAllShaderSourceDirectoryMappings, which would wipe unrelated
+	// mappings), so hot-reload re-entry must instead be made idempotent at the
+	// Add site: skip when the mapping already points at this plugin's dir.
+	// AllShaderSourceDirectoryMappings() is safe to read here (GameThread).
 	{
 		TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("Tether"));
 		if (Plugin.IsValid())
@@ -133,9 +141,13 @@ void FTetherModule::StartupModule()
 			const FString ShaderDir = FPaths::Combine(Plugin->GetBaseDir(), TEXT("Shaders"), TEXT("Private"));
 			if (FPaths::DirectoryExists(ShaderDir))
 			{
-				AddShaderSourceDirectoryMapping(TEXT("/Plugin/Tether"), ShaderDir);
-				UE_LOG(LogTetherModule, Log,
-					TEXT("registered shader dir '%s' under /Plugin/Tether"), *ShaderDir);
+				const FString* Existing = AllShaderSourceDirectoryMappings().Find(TEXT("/Plugin/Tether"));
+				if (!Existing || *Existing != ShaderDir)
+				{
+					AddShaderSourceDirectoryMapping(TEXT("/Plugin/Tether"), ShaderDir);
+					UE_LOG(LogTetherModule, Log,
+						TEXT("registered shader dir '%s' under /Plugin/Tether"), *ShaderDir);
+				}
 			}
 		}
 	}
@@ -210,9 +222,21 @@ void FTetherModule::StartupModule()
 		// already user-scoped.
 		const FString TokenPath = FPaths::Combine(FPaths::ProjectSavedDir(),
 			TEXT("Tether"), TEXT("token.txt"));
-		FFileHelper::SaveStringToFile(Token, *TokenPath,
-			FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
-		UE_LOG(LogTetherModule, Log, TEXT("token written to %s"), *TokenPath);
+		// X-TOKEN①: a swallowed write failure would leave the client unable
+		// to authenticate while the log still claims success — check the
+		// return value and only announce the path on success.
+		if (FFileHelper::SaveStringToFile(Token, *TokenPath,
+			FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))
+		{
+			UE_LOG(LogTetherModule, Log, TEXT("token written to %s"), *TokenPath);
+		}
+		else
+		{
+			UE_LOG(LogTetherModule, Error,
+				TEXT("failed to write token to %s — clients cannot read it from disk; "
+					"pass the token explicitly or fix the directory permissions"),
+				*TokenPath);
+		}
 	}
 
 	// ---- start the discovery responder --------------------------------
@@ -274,6 +298,11 @@ void FTetherModule::ShutdownModule()
 		MainFrame.OnMainFrameCreationFinished().Remove(MainFrameReadyHandle);
 		MainFrameReadyHandle.Reset();
 	}
+
+	// N-F9: no RemoveShaderSourceDirectoryMapping exists in UE 5.7's RenderCore
+	// (only ResetAllShaderSourceDirectoryMappings, which would wipe unrelated
+	// plugins' mappings). Duplicate prevention is handled at the Add site in
+	// StartupModule by re-checking AllShaderSourceDirectoryMappings().
 
 	TetherPerfSampler::Shutdown();
 	TetherPerfFrameHook::Unregister();
