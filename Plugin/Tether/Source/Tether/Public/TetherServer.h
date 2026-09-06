@@ -92,8 +92,13 @@ public:
 	 *  script output, which even a slow client drains well within this. */
 	static constexpr float SendTimeoutSeconds = 8.0f;
 
-	/** Upper bound for Result.Output / Result.Error (see DoPythonExec). */
-	static constexpr int32 MaxExecOutputChars = 8 * 1024 * 1024;
+	/**
+	 * Upper bound for Result.Output / Result.Error counted in UTF-8 wire
+	 * bytes (see DoPythonExec). Budgeted below the client's 10 MB frame limit
+	 * so a large CJK/emoji reply still fits the frame after JSON escaping —
+	 * capping TCHARs instead would allow ~24-32 MB on the wire.
+	 */
+	static constexpr int32 MaxExecOutputUtf8Bytes = 8 * 1024 * 1024;
 
 	/**
 	 * Mark the editor as fully initialized (main frame created). Until this is
@@ -130,6 +135,15 @@ private:
 	void SendErrorAndClose(FSocket* ClientSocket, const FString& RequestId,
 		const FString& ErrorCode, const FString& Message);
 
+	/**
+	 * Same frame as SendErrorAndClose with an explicit send timeout. Used by
+	 * paths that send while holding the admission-gate lock (capacity
+	 * rejection): a stalled client must not pin the listener thread — and
+	 * Stop(), which takes the same lock — for the full SendTimeoutSeconds.
+	 */
+	void SendErrorFrame(FSocket* ClientSocket, const FString& RequestId,
+		const FString& ErrorCode, const FString& Message, float TimeoutSeconds);
+
 	/** Read exactly NumBytes from the socket. Returns false on failure. */
 	bool RecvAll(FSocket* Socket, uint8* Buffer, int32 NumBytes, float TimeoutSeconds);
 
@@ -145,7 +159,8 @@ private:
 	 * Serialize a JSON response, prepend the 4-byte big-endian length prefix,
 	 * and send the frame in a single SendAll call. Returns false on failure.
 	 */
-	bool SendResponseFrame(FSocket* ClientSocket, const TSharedRef<FJsonObject>& Response);
+	bool SendResponseFrame(FSocket* ClientSocket, const TSharedRef<FJsonObject>& Response,
+		float TimeoutSeconds = SendTimeoutSeconds);
 
 	/** Result of a Python exec request. */
 	struct FExecResult
@@ -153,7 +168,7 @@ private:
 		bool bSuccess = false;
 		FString Output;
 		FString Error;
-		/** True when Output/Error were truncated to MaxExecOutputChars (X-OUT). */
+		/** True when Output/Error were truncated to MaxExecOutputUtf8Bytes (X-OUT). */
 		bool bTruncated = false;
 	};
 
@@ -203,11 +218,31 @@ private:
 
 	// per-connection worker 线程让 Stop 等待对象从 graph event 变为线程句柄；注册语义
 	// 由 admission gate 持锁快照（gate callback 内创建 + 入表），Close 后不再有新线程入表。
+	// 表中的 worker 一定处于 Run() 中（Run 返回前已持锁自移除）。
 	// Per-connection worker threads replace graph events; registration semantics stay with the
 	// admission gate (threads are created + registered inside the gate callback, so no thread
-	// can register after Close).
+	// can register after Close). Every worker in the table is inside Run() (Run's epilogue
+	// removes itself under the lock before returning).
 	TSet<FTetherClientWorker*> ClientWorkerThreads;
 	FCriticalSection ClientWorkerThreadsLock;
+
+	// Run() 已返回、等待收割者联接并 delete 的 worker（N-F4 reaper 模型）。
+	// MPSC：worker 自身 enqueue，仅 GameThread（ticker/Stop）dequeue。
+	// Workers whose Run() has returned, awaiting the reaper to join and
+	// delete them (N-F4 reaper model). MPSC: workers enqueue themselves; only
+	// the GameThread (ticker/Stop) dequeues.
+	TQueue<FTetherClientWorker*, EQueueMode::Mpsc> DeadWorkers;
+
+	/**
+	 * 收割已退出的 worker：Kill(true) 联接（Run 已返回，瞬时）、关句柄、
+	 * 从 ThreadManager 摘除，然后 delete（析构销毁 socket）。只在
+	 * GameThread 调用（ticker 与 Stop）。
+	 * Reap finished workers: Kill(true) joins (Run already returned, so it
+	 * is instant), closes the handle, deregisters from the ThreadManager,
+	 * then deletes (the destructor destroys the socket). GameThread only
+	 * (ticker and Stop).
+	 */
+	void ReapDeadWorkers();
 
 	// Connection limit (item #5). Atomic because we increment/decrement from
 	// the listener thread (accept path) and the client-worker thread (completion).

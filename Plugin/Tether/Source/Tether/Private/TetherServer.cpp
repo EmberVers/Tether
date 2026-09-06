@@ -61,12 +61,31 @@ struct FTetherServer::FPendingExec final
  * 就能钉死整个 TG 后台线程池。专用 FRunnableThread 线程与阻塞 IO 天然匹配：
  * 互不占用任务图，退出由 FTetherServer::bShutdownRequested 驱动。
  *
+ * 生命周期（收割者模式）：worker 的 Run() 返回前把自己从注册表移除、
+ * Decrement ActiveClients、把自己推进 DeadWorkers MPSC 队列；GameThread 的
+ * ticker（或 Stop）作为唯一收割者：Kill(true) 联接已退出的线程（瞬时）、
+ * Close OS 句柄、从 ThreadManager 摘除，然后 delete worker（析构销毁 socket）。
+ * worker 自己绝不 Kill 自己的线程句柄——Kill(true) 里的
+ * WaitForSingleObject(自身) 是死锁。对象销毁与 socket 销毁都在收割者的
+ * 线程上下文，注册表里的指针只在 gate 锁内访问，不存在悬垂窗口。
+ *
  * Per-connection dedicated worker thread (N-F4). Previously each connection
  * pinned an AnyBackgroundThreadNormalTask task-graph thread for the (up to
  * 300 s) lifetime of HandleClient, so 16 connections could starve the whole
  * background thread pool. A dedicated FRunnableThread matches blocking IO
  * naturally: task-graph threads stay free, and shutdown is driven by
  * FTetherServer::bShutdownRequested.
+ *
+ * Lifecycle (reaper model): Run()'s epilogue removes the worker from the
+ * registry, decrements ActiveClients, and pushes itself onto the DeadWorkers
+ * MPSC queue; the GameThread ticker (or Stop) is the sole reaper — Kill(true)
+ * joins the already-returned thread (instant), closes the OS handle,
+ * deregisters from the ThreadManager, then deletes the worker (whose
+ * destructor destroys the socket). A worker never kills its own thread
+ * handle: Kill(true)'s WaitForSingleObject(self) is a deadlock. Object and
+ * socket destruction both happen on the reaper's thread context, and
+ * registry pointers are only touched under the gate lock — no dangling
+ * window exists.
  */
 class FTetherClientWorker final : public FRunnable
 {
@@ -99,11 +118,30 @@ public:
 	virtual uint32 Run() override
 	{
 		Server->HandleClient(ClientSocket, EndpointStr);
+		// Retire onto the graveyard queue — see the comment above Run().
+		// NOTE: Run must NOT touch Thread (its own handle) in any way.
+		// FRunnableThreadWin::Run() calls Runnable->Exit() right after
+		// Runnable->Run() returns, and a Kill(true) issued here would try to
+		// join the CURRENT thread — a self-deadlock that wedges the worker
+		// before it can decrement ActiveClients.
+		{
+			FScopeLock Lock(&Server->ClientWorkerThreadsLock);
+			Server->ClientWorkerThreads.Remove(this);
+		}
+		Server->ActiveClients.Decrement();
+		Server->DeadWorkers.Enqueue(this);
 		return 0;
 	}
 
-	// worker 自持线程句柄；Kill(true) 等待 Run() 返回并销毁 this。
-	// The worker owns its thread handle; Kill(true) waits for Run() to return and destroys this.
+	// worker 自持线程句柄，但从不由 worker 自己 Kill/销毁——自杀式
+	// Kill(true) 会等待自己（死锁）。收割一律在 GameThread（ticker 或
+	// Stop）进行：此刻 Run 已返回、线程即将退出或已退出，Kill(true) 的
+	// WaitForSingleObject 是瞬时通过或最坏等到线程退出为止，绝不长阻塞。
+	// The worker holds its thread handle but NEVER kills it itself — a
+	// self-issued Kill(true) waits for the current thread (deadlock). Reaping
+	// always happens on the GameThread (ticker or Stop): Run has already
+	// returned there, so Kill(true)'s WaitForSingleObject passes instantly or
+	// at worst waits for the thread's final exit — never a long block.
 	TUniquePtr<FRunnableThread> Thread;
 
 private:
@@ -731,6 +769,22 @@ bool FTetherServer::Start(const FStartConfig& Config)
 		}
 	}
 
+	// Bind the accept delegate as soon as the listener is confirmed alive
+	// (see below): FTcpListener starts its accept thread in the constructor,
+	// and an unbound delegate makes it silently Close+Destroy accepted sockets
+	// (TcpListener.h) — binding before the gate opens means an early connection
+	// is answered with an explicit shutting_down frame by OnConnectionAccepted
+	// instead of being dropped without a trace (the last remnant of the N-F10
+	// startup window).
+	Listener->OnConnectionAccepted().BindRaw(this, &FTetherServer::OnConnectionAccepted);
+
+	// 身份只在 listener 成功建立后生成；每次成功 Start 都得到新的 UUID。
+	// Identity is generated only after the listener succeeds; every successful Start receives a fresh UUID.
+	const FTetherEndpointIdentity Identity = FTetherEndpointIdentity::Create();
+	InstanceId = Identity.InstanceId;
+	ProjectPath = Identity.ProjectPath;
+	ProcessId = Identity.ProcessId;
+
 	// N-F10①：bIsRunning 与 admission gate 在 listener 存活后立即开启（仍在
 	// identity/ticker/delegate 注册之前）。窗口期内进入的连接不再被静默丢弃：
 	// exec 请求由 bEditorReady gate 拒绝（有错误帧），ping/status 等只读命令
@@ -745,15 +799,6 @@ bool FTetherServer::Start(const FStartConfig& Config)
 	// through the cancellation state machine.
 	bIsRunning = true;
 	WorkAdmission->Open();
-
-	// 身份只在 listener 成功建立后生成；每次成功 Start 都得到新的 UUID。
-	// Identity is generated only after the listener succeeds; every successful Start receives a fresh UUID.
-	const FTetherEndpointIdentity Identity = FTetherEndpointIdentity::Create();
-	InstanceId = Identity.InstanceId;
-	ProjectPath = Identity.ProjectPath;
-	ProcessId = Identity.ProcessId;
-
-	Listener->OnConnectionAccepted().BindRaw(this, &FTetherServer::OnConnectionAccepted);
 
 	// Register the GameThread ticker that drains the exec queue.
 	// Using FTSTicker instead of AsyncTask(GameThread) prevents reentrancy:
@@ -893,27 +938,65 @@ void FTetherServer::Stop()
 		Pending->Work.TryCancel(MoveTemp(ShutdownResult), ObservedState);
 	}
 
-	// 6. 等待每个 worker 线程收尾。Kill(true) 联合等待线程退出与 FRunnable 析构
-	//    （socket 销毁发生在 worker 自己的 context，参考 TetherDiscovery 的成熟模式）。
-	//    取消标志在步骤 1 已置位，worker 最迟 50 ms 内脱离 IO 循环——GameThread
-	//    的等待从"最多 30 s/连接"降到毫秒级。
-	// Wait for each worker thread to unwind. Kill(true) joins the thread and
-	// destroys the FRunnable (the socket is destroyed on the worker's own
-	// context; same proven pattern as TetherDiscovery). The cancellation flag
-	// was set in step 1, so workers leave their IO loops within one 50 ms
-	// poll — the GameThread wait drops from "up to 30 s per connection" to
-	// milliseconds.
+	// 6. 等待每个 worker 线程收尾并收割（全权移交墓园收割者）。
+	//    快照里的 worker 一定还在 Run() 中（Run 返回前会持锁自移除出表）。
+	//    取消标志在步骤 1 已置位，worker 最迟 50 ms 内脱离 IO 循环、跑完
+	//    Run 尾部（出表 + Decrement + 入墓园队列）。
+	//    【注意】这里对 Thread 调的 Kill(true) 是【纯联接】用途：联接等待
+	//    线程完全退出（等待上限一两个轮询周期）。但 Kill 会同时把 OS 句柄
+	//    Close 并置 NULL——同一个 FRunnableThread 对象不能 Kill 两次
+	//    （第二次撞 check(Thread)）。而墓园收割者也会 Kill——为避免双
+	//    Kill，这里联接完后把 Thread 所有权【Release 放弃】，使收割者的
+	//    Thread.IsValid() 为 false、跳过 Kill 直接 delete。联接已保证线程
+	//    退出，句柄已在本次 Kill 中关闭，收割者无需再碰它。
+	//    GameThread 的等待从"最多 30 s/连接"降到毫秒级；对象与 socket 的
+	//    delete 统一在 ReapDeadWorkers（唯一 delete 点，指针唯一入队点
+	//    是 Run 尾部）。
+	// Wait for each worker thread to unwind (ownership fully handed to the
+	// graveyard reaper). Every worker in the snapshot is still inside Run()
+	// (Run's epilogue removes itself from the table under the lock before
+	// returning). The cancellation flag was set in step 1, so workers leave
+	// their IO loops within one 50 ms poll and run their epilogue (leave
+	// registry + decrement + enqueue onto the graveyard).
+	// NOTE: the Kill(true) below is a PURE join: it waits for the thread to
+	// fully exit (a poll cycle or two at most). But Kill also closes the OS
+	// handle and NULLs it — the same FRunnableThread object must not be
+	// killed twice (the second call trips check(Thread)). The graveyard
+	// reaper kills too, so to avoid the double kill, Release() the thread
+	// ownership after the join: the reaper then sees Thread.IsValid() ==
+	// false and skips its Kill, going straight to delete. The join already
+	// guaranteed the thread's exit and this Kill closed the handle, so the
+	// reaper has nothing left to do.
+	// The GameThread wait drops from "up to 30 s per connection" to
+	// milliseconds; the object + socket delete happens exclusively in
+	// ReapDeadWorkers (the only delete site; Run's epilogue is the only
+	// enqueue site).
 	for (FTetherClientWorker* Worker : WorkersToWait)
 	{
 		if (Worker && Worker->Thread.IsValid())
 		{
 			Worker->Thread->Kill(/*bShouldWait=*/true);
+			// 放弃所有权防二次 Kill；对象内存随 worker 一起被收割者 delete。
+			// Abandon ownership to prevent a second Kill; the object's
+			// memory is deleted by the reaper along with the worker.
+			(void)Worker->Thread.Release();
 		}
 	}
 	{
+		// 表里的项已全部 Kill 联接完毕（对象本体由墓园收割）；gate 已关，
+		// 不会有新注册。清表即可。
+		// Every table entry has been joined (the objects themselves are
+		// reaped via the graveyard); the gate is closed, so no new
+		// registrations can arrive. Just clear the table.
 		FScopeLock Lock(&ClientWorkerThreadsLock);
 		ClientWorkerThreads.Empty();
 	}
+	// 线程创建失败路径 delete 过的 worker 从未入表也从未入墓园（Run 没跑
+	// 过），此处排干墓园就是唯一一次 delete，无双重收割。
+	// Workers deleted on the thread-creation-failure path were never in the
+	// table nor in the graveyard (Run never ran), so draining the graveyard
+	// here performs the single delete — no double reap.
+	ReapDeadWorkers();
 
 	checkf(ActiveClients.GetValue() == 0,
 		TEXT("Tether client workers completed with %d active clients"),
@@ -921,6 +1004,39 @@ void FTetherServer::Stop()
 	EditorHealthCache->Reset();
 	bShutdownRequested = false;
 	UE_LOG(LogTether, Log, TEXT("Stop(): all client workers and GameThread closures drained cleanly"));
+}
+
+void FTetherServer::ReapDeadWorkers()
+{
+	// GameThread-only（ticker 与 Stop 调用）。队列里每个 worker 的 Run() 都已
+	// 返回：Kill(true) 的 WaitForSingleObject 是瞬时通过（线程只差 harness 的
+	// Exit/TLS 清理即退出，或已完全退出），Kill 顺带关闭 OS 句柄并从
+	// ThreadManager 摘除；随后 delete worker——析构是 socket 的唯一销毁点。
+	// 每个指针恰好入队一次（Run 尾部是唯一 enqueue 点），本函数是唯一 delete
+	// 点——Stop 的 Kill 循环只联接不删除（见 Stop 第 6 步注释）。
+	// GameThread only (called from the ticker and Stop). Every worker in the
+	// queue has already returned from Run(): Kill(true)'s
+	// WaitForSingleObject passes instantly (the thread is at worst finishing
+	// the harness's Exit/TLS cleanup, or already gone), and Kill closes the
+	// OS handle and deregisters from the ThreadManager; then delete the
+	// worker — its destructor is the socket's sole destruction point. Each
+	// pointer is enqueued exactly once (Run's epilogue is the only enqueue
+	// site) and deleted exactly once here — Stop's kill loop only joins,
+	// never deletes (see step 6 in Stop).
+	checkf(IsInGameThread(), TEXT("ReapDeadWorkers must run on the GameThread"));
+	FTetherClientWorker* Worker = nullptr;
+	while (DeadWorkers.Dequeue(Worker))
+	{
+		if (!Worker)
+		{
+			continue;
+		}
+		if (Worker->Thread.IsValid())
+		{
+			Worker->Thread->Kill(/*bShouldWait=*/true);
+		}
+		delete Worker;
+	}
 }
 
 bool FTetherServer::IsRunning() const
@@ -971,12 +1087,18 @@ bool FTetherServer::OnConnectionAccepted(FSocket* ClientSocket, const FIPv4Endpo
 				TEXT("[conn] rejecting %s — at concurrency limit (%d/%d)"),
 				*EndpointStr, Active - 1, MaxConcurrentClients);
 			// 容量拒绝发生在任何 request 解析之前（尚无 RequestId）；回最小
-			// 错误帧让客户端看到明确拒绝而不是静默 EOF（N-F6）。
-			// Capacity is rejected before any request parsing (no RequestId yet);
-			// answer with a minimal error frame so the client sees an explicit
-			// refusal instead of a silent EOF (N-F6).
-			SendErrorAndClose(ClientSocket, TEXT("<unknown>"), TEXT("capacity"),
-				FString::Printf(TEXT("server at concurrency limit (%d clients)"), MaxConcurrentClients));
+			// 错误帧让客户端看到明确拒绝而不是静默 EOF（N-F6）。短超时：发送
+			// 在 gate 锁内进行，一个不读数据的客户端不能把 listener 线程
+			// （连带持同一把锁的 Stop）钉住 8 秒。
+			// Capacity is rejected before any request parsing (no RequestId
+			// yet); answer with a minimal error frame so the client sees an
+			// explicit refusal instead of a silent EOF (N-F6). Short timeout:
+			// the send happens under the gate lock, and a client that never
+			// reads must not pin the listener thread (and Stop, which takes
+			// the same lock) for 8 seconds.
+			SendErrorFrame(ClientSocket, TEXT("<unknown>"), TEXT("capacity"),
+				FString::Printf(TEXT("server at concurrency limit (%d clients)"), MaxConcurrentClients),
+				1.0f);
 			return;
 		}
 
@@ -990,21 +1112,33 @@ bool FTetherServer::OnConnectionAccepted(FSocket* ClientSocket, const FIPv4Endpo
 		// TCP_NODELAY on the accepted socket.
 		ClientSocket->SetNoDelay(true);
 
-		// 每连接一个专用 FRunnableThread（N-F4）；线程对象由 unique 所有权持有，
-		// Stop 的 Kill(true) 负责联接与销毁（含 socket 的独占 close）。
-		// One dedicated FRunnableThread per connection (N-F4); the worker holds
-		// unique ownership of the socket and Stop's Kill(true) joins + destroys it.
+		// 每连接一个专用 FRunnableThread（N-F4）。worker 在 Run() 尾部把自己
+		// 移出注册表、Decrement、推进 DeadWorkers 墓园队列；GameThread 的
+		// ticker/Stop 负责联接与 delete（reaper 模型，详见类头注释）。
+		// One dedicated FRunnableThread per connection (N-F4). Run()'s
+		// epilogue removes the worker from the registry, decrements, and
+		// pushes it onto the DeadWorkers graveyard; the GameThread
+		// ticker/Stop joins and deletes it (reaper model — see the class
+		// header comment).
 		FTetherClientWorker* Worker = new FTetherClientWorker(this, ClientSocket, EndpointStr);
 		Worker->Thread.Reset(FRunnableThread::Create(
 			Worker, TEXT("TetherClientWorker"), 0, TPri_Normal));
 		if (!Worker->Thread.IsValid())
 		{
+			// 线程创建失败：worker 析构销毁 socket（唯一所有权点），归还容量槽。
+			// bAccepted 置 true 声明 socket 所有权已由本方接管销毁——FTcpListener
+			// 对返回 false 的连接会再次 Close+Destroy，必须阻止它对已销毁句柄
+			// 二次操作。
 			// Thread creation failure: the worker destructor destroys the
-			// socket (sole ownership), and we free the capacity slot.
+			// socket (sole ownership point) and we free the capacity slot.
+			// Set bAccepted to claim the socket was consumed on our side —
+			// FTcpListener Close+Destroys again on a false return, which
+			// would double-destroy the already-freed handle.
 			UE_LOG(LogTether, Error,
 				TEXT("[conn] failed to spawn worker thread for %s"), *EndpointStr);
 			delete Worker;
 			ActiveClients.Decrement();
+			bAccepted = true;
 			return;
 		}
 
@@ -1027,7 +1161,8 @@ bool FTetherServer::OnConnectionAccepted(FSocket* ClientSocket, const FIPv4Endpo
 	return bAdmissionOpen && bAccepted;
 }
 
-bool FTetherServer::SendResponseFrame(FSocket* ClientSocket, const TSharedRef<FJsonObject>& Response)
+bool FTetherServer::SendResponseFrame(FSocket* ClientSocket, const TSharedRef<FJsonObject>& Response,
+	float TimeoutSeconds)
 {
 	FString ResponseStr;
 	TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&ResponseStr);
@@ -1053,13 +1188,19 @@ bool FTetherServer::SendResponseFrame(FSocket* ClientSocket, const TSharedRef<FJ
 void FTetherServer::SendErrorAndClose(FSocket* ClientSocket, const FString& RequestId,
 	const FString& ErrorCode, const FString& Message)
 {
+	SendErrorFrame(ClientSocket, RequestId, ErrorCode, Message, SendTimeoutSeconds);
+}
+
+void FTetherServer::SendErrorFrame(FSocket* ClientSocket, const FString& RequestId,
+	const FString& ErrorCode, const FString& Message, float TimeoutSeconds)
+{
 	TSharedRef<FJsonObject> Response = MakeShared<FJsonObject>();
 	Response->SetStringField(TEXT("id"), RequestId);
 	Response->SetBoolField(TEXT("success"), false);
 	Response->SetStringField(TEXT("output"), TEXT(""));
 	Response->SetStringField(TEXT("error"), Message);
 	Response->SetStringField(TEXT("error_code"), ErrorCode);
-	SendResponseFrame(ClientSocket, Response);
+	SendResponseFrame(ClientSocket, Response, TimeoutSeconds);
 }
 
 void FTetherServer::HandleClient(FSocket* ClientSocket, const FString& EndpointStr)
@@ -1664,6 +1805,10 @@ bool FTetherServer::TickConsumeQueue(float /*DeltaTime*/)
 		return true; // still ticking; will be removed by Stop()
 	}
 
+	// N-F4 reaper: drain workers that finished this frame. Run() already
+	// returned for each of them, so the Kill(true) join inside is instant.
+	ReapDeadWorkers();
+
 	EditorHealthCache->RecordEngineTick();
 	if (!SlatePreTickHandle.IsValid() && FSlateApplication::IsInitialized())
 	{
@@ -1818,19 +1963,38 @@ FTetherServer::FExecResult FTetherServer::DoPythonExec(const FString& Script)
 	// (3-5x amplification through StringIO + base64 + JSON) or exceeds the
 	// client's frame limit AFTER the script's side effects happened, which
 	// reports "protocol error" for a script that actually ran. Cap at
-	// MaxExecOutputChars; FString::Left cuts on TCHAR boundaries (UTF-16
-	// code units), so it never splits a UTF-8/UTF-16 sequence in the wire
-	// encoding. bTruncated rides along in the response as "truncated": true.
-	if (Result.Output.Len() > MaxExecOutputChars)
+	// MaxExecOutputUtf8Bytes of UTF-8 wire bytes (NOT TCHARs: 8M UTF-16 code
+	// units of CJK become ~24 MB on the wire and would still blow the client's
+	// 10 MB frame limit after the side effects ran). The clamp backs off over
+	// UTF-8 continuation bytes so the cut lands on a code-point boundary (the
+	// engine's UTF-8 converter would turn a lone surrogate into '?', which is
+	// harmless, but whole-code-point cuts cost nothing).
+	// bTruncated rides along in the response as "truncated": true.
+	auto ClampToUtf8Budget = [](FString& InOut, bool& bOutTruncated)
 	{
-		Result.Output = Result.Output.Left(MaxExecOutputChars);
-		Result.bTruncated = true;
-	}
-	if (Result.Error.Len() > MaxExecOutputChars)
-	{
-		Result.Error = Result.Error.Left(MaxExecOutputChars);
-		Result.bTruncated = true;
-	}
+		const FTCHARToUTF8 Utf8(*InOut);
+		if (Utf8.Length() <= (int32)MaxExecOutputUtf8Bytes)
+		{
+			return;
+		}
+		// FTCHARToUTF8::Get() returns const ANSICHAR* (the converter's ToType
+		// predates char8_t); the bytes are UTF-8 either way, so reinterpret
+		// for the continuation-byte arithmetic below.
+		const ANSICHAR* Start = Utf8.Get();
+		int32 Cut = (int32)MaxExecOutputUtf8Bytes;
+		while (Cut > 0 && (Start[Cut] & 0xC0) == 0x80)
+		{
+			--Cut; // back off continuation bytes so we cut on a code point
+		}
+		// Trim from the end until the re-encoded string fits the byte budget.
+		while (!InOut.IsEmpty() && FTCHARToUTF8(*InOut).Length() > Cut)
+		{
+			InOut.LeftChopInline(1);
+		}
+		bOutTruncated = true;
+	};
+	ClampToUtf8Budget(Result.Output, Result.bTruncated);
+	ClampToUtf8Budget(Result.Error, Result.bTruncated);
 	return Result;
 }
 
