@@ -11,6 +11,13 @@ parameter additions that landed in 5.8.
 This document lists what's gated. The build matrix in `tools/build_matrix.py`
 verifies the gates by compiling the plugin against each engine version.
 
+**Client-side visibility of the gates:** the safe-stub / gated-out functions
+carry a `min_engine` marker in `tether_manifest.json`, so `tether_preflight.py`
+rejects a call to one of them on an older editor **before any TCP round-trip**
+with a deterministic error naming the required engine version — a stub's
+silent default (0 / empty / `bSuccess=false`) is never mistaken for a real
+result.
+
 ## Whole-library gates (disappear entirely on 5.4)
 
 Each library below is wrapped in `#if !UE_VERSION_OLDER_THAN(5, 7, 0)`. On 5.4

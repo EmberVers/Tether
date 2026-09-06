@@ -53,7 +53,7 @@ EDA 与 Tether 的关系**不是替代,是互补**。两者的目标用户和能
 |---|---|---|---|
 | P0-1 | 新增 `Plugin/Tether/Source/TetherEDA/` 模块,只在 `Target.Version >= 5.8` 时编译(`*.Build.cs` 用 `EngineVersion.Major >= 5 && EngineVersion.Minor >= 8` 守门) | 小 | 模块加载阶段 `PostEngineInit`,声明软依赖 `ToolsetRegistry` plugin |
 | P0-2 | 实现 `FTetherToolsetProvider : public IToolsetProvider`,在 `RegisterTools()` 里只注册一个 tool:`tether.exec_python` | 小 | input schema 单参数 `script: string` + 可选 `timeout: number`;output schema `{success, output, error}` 直接转发 TCP 路径已有结构 |
-| P0-3 | tool handler 内部调用 `IPythonScriptPlugin::ExecPythonCommandEx`,**复用** `TetherServer` 的 GameThread dispatch 路径 + `__UB_ERR__` stdout/stderr 分隔约定 | 小 | 不复制代码 — 抽出 `RunPythonOnGameThread(Script, Timeout) → FTetherResult` 共用函数 |
+| P0-3 | tool handler 内部调用 `IPythonScriptPlugin::ExecPythonCommandEx`,**复用** `TetherServer` 的 GameThread dispatch 路径 + `__UB_B64__...|...__UB_END__` base64 stdout/stderr envelope 约定 | 小 | 不复制代码 — 抽出 `RunPythonOnGameThread(Script, Timeout) → FTetherResult` 共用函数 |
 | P0-4 | tool description 内嵌入"reference 索引"提示文本(~300 tokens):`"21 Tether*Library available via unreal.TetherXxxLibrary.fn(...). See tether_manifest.json for full surface; see references/tether-*-api.md for usage patterns."` | 小 | 这是给 LLM 的 hint,告诉它怎么用 — 比注册 1020 个 tool descriptor 节省 20 万 tokens |
 | P0-5 | 在 EDA `AIAssistant` 面板里手动验证 — 启用 Tether + ModelContextProtocol + AIAssistant 三个插件,看 Tether 是否出现在面板的 toolset 列表里 | 小 | 验证步骤,不是开发 |
 | P0-6 | 验证用 Claude Desktop 通过 EDA 的 MCP server 调到 Tether 的 exec_python — 跑 `unreal.TetherLevelLibrary.get_level_summary()` 通过 | 小 | 端到端 smoke test |

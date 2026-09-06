@@ -167,6 +167,8 @@ Every `exec*` call runs an AST preflight in the tether client BEFORE sending. Re
 
 Type validation is NOT done by preflight. Wrong asset paths / wrong scope still surface at runtime — references prose still matters for those.
 
+Functions whose real implementation requires a newer engine carry a `min_engine` marker in `tether_manifest.json` (the UE<5.7 stubs, e.g. StateTree / Smart Object / Rig / Niagara gated APIs). On an older editor, preflight rejects those calls deterministically with the engine requirement in the message instead of letting the call reach UE and return a stub's silent default.
+
 **Treat preflight as a backstop, not a planning tool.** If you write code expecting preflight to autocorrect your guesses, you'll produce noisy output and still hit runtime tracebacks for the half it can't catch (USTRUCT field names, Python attribute access, EditDefaultsOnly violations). See "Verify before you call" below.
 
 Bypass with `--no-preflight` (rare). Preview with `tether.py preflight <path>`.
@@ -382,6 +384,7 @@ Verified: identifiers + literals in script source, exception messages/tracebacks
 - **NEVER** modify or overwrite assets without describing the change first.
 - Wrap state-changing ops in `unreal.ScopedEditorTransaction`.
 - On failure: show full traceback. Don't silently retry destructive ops.
+- **Network trust model (know what the connection guarantees):** the server binds loopback by default, which means **every local process connects with equal rights** — the token file is not a process-isolation boundary. Non-loopback binds require a token, but the token crosses TCP in **plaintext (no TLS)**. Never arrange or recommend a cross-host setup that exposes the TCP port directly; use an SSH tunnel or an equivalent encrypted transport instead.
 
 ## Notes
 
@@ -389,4 +392,6 @@ Verified: identifiers + literals in script source, exception messages/tracebacks
 - `print()` returns to tether; `unreal.log()` only to UE Output Log.
 - Structured data: `import json; print(json.dumps(...))` with `--json`.
 - If `ping` fails: editor not running, plugin not enabled, or wrong project (preconditions above).
-- Timeout: retry with `--timeout 120`.
+- Timeout: retry with `--timeout 120`. The server clamps any requested exec timeout to a **300 s hard ceiling** — values above 300 are effectively 300, so don't plan scripts around longer runs; split the work instead.
+- **Exec response semantics:** `success` reflects execution only — stderr (warnings, log noise) is preserved in `error` and may be non-empty with `success=true`, so don't treat "error text present" as failure on its own. Each of `output`/`error` is capped at 8 MiB; a `"truncated": true` field means the field was clipped — page or reduce the output rather than re-running. The client rejects response frames over 10 MiB as a protocol error; if you hit it, lower the print volume.
+- **Json output compaction:** every `exec`/`exec-file` installs a session-level monkey-patch on `json.dumps` / `json.dump` inside UE's persistent Python interpreter (strips `indent`, defaults to compact separators — saves 30-50% tokens on `print(json.dumps(...))`). The patch affects **all** `json.dumps`/`dump` calls in that interpreter, including non-tether code, and persists for the editor session. Set the environment variable `UNREAL_TETHER_NO_JSON_COMPACT=1` on the editor process to disable the patch entirely if byte-exact default formatting matters.

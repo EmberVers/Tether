@@ -76,7 +76,7 @@ defer_to_next_tick(script_str)  # queue a Python snippet for next GameThread tic
 |-------|-----------|
 | `"LogContinue"` (default) | Script exception → log + keep handler active |
 | `"LogUnregister"` | Script exception → log + auto-deregister (debug aid) |
-| `"Throw"` | Script exception → log at Error severity + keep active |
+| `"Throw"` | Script exception → log at Error severity + **pause the handler** (visible as `paused=True` / `stats.paused_by_error_policy=True`; `resume(handler_id)` re-arms it) |
 
 ---
 
@@ -162,7 +162,7 @@ that has since been GC'd).
 
 ### register_runtime_attribute_changed
 
-Fire when an `FGameplayAttributeData` field on the target's ASC changes value. Binds `UAbilitySystemComponent::GetGameplayAttributeValueChangeDelegate(Attribute)` (non-dynamic, cheap).
+Fire when an `FGameplayAttributeData` field on the target's ASC changes value. Binds `UAbilitySystemComponent::GetGameplayAttributeValueChangeDelegate(Attribute)` (non-dynamic, cheap). The attribute is resolved at registration time: a non-existent attribute name returns an **empty handler_id** (nothing is enrolled or persisted) — treat an empty id as "registration rejected" and fix the name instead of waiting for a fire that never comes.
 
 ```python
 hid = unreal.TetherReactiveLibrary.register_runtime_attribute_changed(
@@ -290,7 +290,7 @@ hid = unreal.TetherReactiveLibrary.register_runtime_input_action(
     description="Log every time the player presses Jump",
     target_actor_name="BP_UnitCharacterBase_C_0",
     input_action_path="/Game/Input/IA_Jump",
-    trigger_event="Triggered",   # Started|Ongoing|Triggered|Completed|Canceled
+    trigger_event="Triggered",   # Started|Ongoing|Triggered|Completed|Canceled — case-insensitive input, stored canonical; an unrecognized value returns an empty handler_id
     script="log('jump ' + ctx['trigger_event'] + ' value=' + str(ctx['value_bool']))",
     script_path="", tags=["input"],
     lifetime="Permanent",
@@ -538,11 +538,11 @@ Handlers **survive editor restarts automatically.** The subsystem auto-saves the
 **What persists:**
 - Task name, description, tags, script source, lifetime, error policy, throttle, `RegistrationContext` (user-provided `target_actor_name` / `event_tag` / `interval_seconds` / etc.).
 - Seq counters so new post-restart ids don't collide with old ones.
+- Paused state — the `paused` field survives restarts (absent on pre-schema files means false).
 
 **What doesn't persist:**
 - `WhilePIE` lifetime handlers (session-bound by definition).
 - Stats (`calls`, `max_microseconds`, …) — reset on load.
-- Pause state — restored handlers are unpaused.
 - Live `Subject` weak ptr (it's ephemeral). Subject gets re-resolved from `RegistrationContext` at load.
 
 **Deferred restoration.** Editor-world subjects (a `UBlueprint` path, Timer, global triggers) resolve immediately at startup. **PIE-world subjects** (`ACharacter`, `UAbilitySystemComponent`, `UAnimInstance`, the player pawn, etc.) can't resolve until PIE starts — those records go into `DeferredHandlers` and retry on `FEditorDelegates::PostPIEStarted`. Check the queue size via `get_deferred_handler_count()`; inspect entries via `list_all_handlers()` (they surface with `subject_path = "<unresolved>"` until resolved).
@@ -563,7 +563,7 @@ path = unreal.TetherReactiveLibrary.get_persistence_path()
 pending = unreal.TetherReactiveLibrary.get_deferred_handler_count()
 ```
 
-**Schema version = 1.** Files with a different version are logged-and-skipped (don't destroy user data). Corrupt JSON is logged and skipped likewise — if that happens, delete the file manually to start fresh.
+**Schema version = 1.** Files with a different version are logged-and-skipped (don't destroy user data). Corrupt JSON is renamed aside to `<file>.corrupt-<UTC timestamp>` (preserved for manual salvage) and the registry starts fresh, so a bad file no longer re-fails the parse on every startup.
 
 ---
 

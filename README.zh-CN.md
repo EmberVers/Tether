@@ -20,13 +20,13 @@
 
 ---
 
-Tether 是一个面向 AI Agent 的 Unreal Engine 编辑器桥接层，围绕动画资产内省、Reactive 事件订阅、资产搜索与引用分析、蓝图图谱自动布局等核心场景，提供一套类型化的操作接口。Agent 在本地正在运行的编辑器实例中发起查询与修改，所有变更实时生效，并受事务系统约束、可被撤销。
+Tether 是一个面向 AI Agent 的 Unreal Engine 编辑器集成层（插件名 Tether），围绕动画资产内省、Reactive 事件订阅、资产搜索与引用分析、蓝图图谱自动布局等核心场景，提供一套类型化的操作接口。Agent 在本地正在运行的编辑器实例中发起查询与修改，所有变更实时生效，并受事务系统约束、可被撤销。
 
-> **运行边界：** 当前桥接仅支持交互式编辑器会话；当 Unreal Engine 实际运行 Commandlet 时，该模块不会加载。`UnrealEditor-Cmd.exe` 本身并不等同于 Commandlet 边界，是否排除取决于具体启动模式。未来若要在 Commandlet 或其他真正的无头会话中支持 tether，必须将 Commandlet-safe 服务与交互式编辑器及 Slate 依赖拆分。
+> **运行边界：** 当前 Tether 仅支持交互式编辑器会话——它是纯编辑器插件，不支持 runtime / 打包后的游戏。模块类型为 `EditorNoCommandlet`：当 Unreal Engine 实际运行 Commandlet 时，该模块不会加载。`UnrealEditor-Cmd.exe` 本身并不等同于 Commandlet 边界，是否排除取决于具体启动模式。未来若要在 Commandlet 或其他真正的无头会话中支持 Tether，必须将 Commandlet-safe 服务与交互式编辑器及 Slate 依赖拆分。
 
 ## 亮点
 
-- **基于 AST 的防幻觉契约层。** 用户脚本到达 UE 之前，`tether_preflight.py` 先用 Python AST 解析，对照自动生成的清单（26 个库 × 1388 UFUNCTION）逐一校验每个 `unreal.Tether*Library.fn(...)` 调用——**不回到编辑器** 就能拦下不存在的库 / 函数名（带 did-you-mean）、错误的位置参数数量、未知关键字、不存在的桥接枚举成员。第二层把 `AssetRegistry` / `GameplayStatics` 的裸调用模式重定向到桥接等价物，并追踪每个返回值的实际类型，在对 `str` / `SoftObjectPath` 这类绑定类型做属性访问时给出警告；UE 对象抛出真正的 `AttributeError` 时则回查 UE Python，列出该类实际反射的 `UPROPERTY` 并给出可粘贴的修正代码（自动处理 `snake_case` ↔ `PascalCase` 的差异）。第三层 ship 一份纯关键字参数的 Python wrapper 模块，让"位置参数顺序写错"在语法层面就不可能发生。三层叠加把新会话 agent 的桥接调用失败率从 **24% 降到 16%**（A/B 验证）——这是先前仅靠 `SKILL.md` 的"调用前先查文档"提示规则一直没能稳定做到的。
+- **基于 AST 的防幻觉契约层。** 用户脚本到达 UE 之前，`tether_preflight.py` 先用 Python AST 解析，对照自动生成的清单（26 个库 × 1390 UFUNCTION）逐一校验每个 `unreal.Tether*Library.fn(...)` 调用——**不回到编辑器** 就能拦下不存在的库 / 函数名（带 did-you-mean）、错误的位置参数数量、未知关键字、不存在的 tether 枚举成员。第二层把 `AssetRegistry` / `GameplayStatics` 的裸调用模式重定向到 Tether 等价物，并追踪每个返回值的实际类型，在对 `str` / `SoftObjectPath` 这类绑定类型做属性访问时给出警告；UE 对象抛出真正的 `AttributeError` 时则回查 UE Python，列出该类实际反射的 `UPROPERTY` 并给出可粘贴的修正代码（自动处理 `snake_case` ↔ `PascalCase` 的差异）。第三层 ship 一份纯关键字参数的 Python wrapper 模块，让"位置参数顺序写错"在语法层面就不可能发生。三层叠加把新会话 agent 的 Tether 调用失败率从 **24% 降到 16%**（A/B 验证）——这是先前仅靠 `SKILL.md` 的"调用前先查文档"提示规则一直没能稳定做到的。
 
   <p align="center">
     <img src="docs/images/zh/02-preflight.png" alt="本地 AST 预检 · 不让幻觉抵达编辑器">
@@ -35,10 +35,10 @@ Tether 是一个面向 AI Agent 的 Unreal Engine 编辑器桥接层，围绕动
 - **资产结构深度内省 + 作者级写操作。** `TetherAnimLibrary` 覆盖 AnimBP 状态机、AnimGraph 节点、链接层、Slot、曲线、Sequence / Montage / BlendSpace 以及骨骼树的完整查询，并配套一整套写操作：从零搭建 ABP、增删状态 / 转移 / 条件规则、AnimGraph 节点创建与连线、状态机与 AnimGraph 的自动布局；`TetherAssetLibrary` 在关键字搜索之外，支持资产的正向依赖与反向引用分析，可向 Agent 输出完整的依赖关系视图。相较于基础 CRUD 封装或需自行拼装反射调用的方案，该层次的结构化能力属于开箱即用。
 - **可交付的 Control Rig 与动画重定向工作流。** `TetherRigLibrary` 可制作 Control Rig Hierarchy 和完整连线的 RigVM Graph，并在瞬态实例上求值；配置 IK Rig Solver／Goal／Chain；构建 IK Retargeter 的 Op Stack、Mapping、Pose 与 Profile；初始化真实 Retarget Processor、批量生成重定向动画，并对 Root Spike、脚滑／穿地和关节跳变做采样质检。Type／Property 发现和编译／Processor 诊断确保全过程走官方编辑器 Controller，而不是直接改私有数据。
 - **可交付的 Niagara 特效工作流。** `TetherNiagaraLibrary` 可发现引擎模板与脚本，制作 System／Emitter、Stack Module 与输入、User Parameter、Renderer、材质与 Binding，并通过编译、交付审计和瞬态模拟做质量验收。生产预设覆盖可移动 Ribbon、动态 Beam、静态 Beam 武器 Trail，方向性／放射状火花，含真实冲击波和 Light 层的多层爆炸，以及材质同步的消散／解体粒子。
-- **基于 Reactive 系统的事件订阅。** Agent 可订阅 GAS 事件、属性变化、Actor 生命周期、AnimNotify、输入、定时器，以及编辑器端的资产变更事件。在指定事件触发时由桥接层主动回调，无需 Agent 轮询——这是纯请求 / 响应式协议无法覆盖的场景。
+- **基于 Reactive 系统的事件订阅。** Agent 可订阅 GAS 事件、属性变化、Actor 生命周期、AnimNotify、输入、定时器，以及编辑器端的资产变更事件。在指定事件触发时由 Tether 主动回调，无需 Agent 轮询——这是纯请求 / 响应式协议无法覆盖的场景。
 - **PIE 运行时的 Agent 控制接口。** `TetherGameplayLibrary` 提供聚合式世界观测、导航寻路，以及移动 / 视角 / 跳跃等操作输入，适用于 AI 行为验证、自动化测试、游戏内 NPC 原型等运行时工作流。
 - **蓝图工具链。** 不仅仅是自动布局：`auto_layout_graph` 的 `pin_aligned` 策略读取 Slate 实时几何对齐 exec 轨道、`straighten_exec_chain` 把主干拉直、`collapse_nodes_to_function` 提取子图、`lint_blueprint` 按固定规则扫 orphan / 未命名节点 / 过大函数 / 无注释大图，`add_comment_box` + 预设配色（Section / Validation / Danger / Network / UI / Debug / Setup）让图谱分区可读；AnimGraph 与状态机还有专用的 `auto_layout_anim_graph` / `auto_layout_state_machine`（后者递归进入每个状态内部 + 规则图）。
-- **Python 原生执行。** 26 个 `Tether*Library` 累计 1388 个 `UFUNCTION`，覆盖常见子系统；未封装的能力可直接通过 `unreal.*` 原生 API 调用。相较于固定工具列表的 MCP 方案与仅暴露单一 `call` 命令的反射协议，该设计在灵活性与结构性之间取得了折衷。所有关卡写操作均包裹于 `FScopedTransaction` 内，支持标准 Undo / Redo。
+- **Python 原生执行。** 26 个 `Tether*Library` 累计 1390 个 `UFUNCTION`，覆盖常见子系统；未封装的能力可直接通过 `unreal.*` 原生 API 调用。相较于固定工具列表的 MCP 方案与仅暴露单一 `call` 命令的反射协议，该设计在灵活性与结构性之间取得了折衷。所有关卡写操作均包裹于 `FScopedTransaction` 内，支持标准 Undo / Redo。
 
 ## 架构
 
@@ -49,7 +49,7 @@ flowchart LR
     subgraph Host["Agent 主机"]
       CLI["tether.py"]
       Pre["AST preflight<br/>（本地 — 调用前拦截，<br/>不发起 TCP）"]
-      Mani[("tether_manifest.json<br/>26 个库 · 1388 UFUNCTION")]
+      Mani[("tether_manifest.json<br/>26 个库 · 1390 UFUNCTION")]
     end
 
     Gen["tools/gen_manifest.py<br/>扫 C++ 头文件"]
@@ -208,7 +208,7 @@ python .claude/skills/tether/scripts/rebuild_relaunch.py  # 动到反射
 `--project-dir D:\Path\To\YourProject`；只有移动源码仓库导致记录路径失效时
 才需要额外传 `--sync-source`。
 
-## 桥接库
+## Tether 库
 
 | 库 | 作用 |
 |---|---|
@@ -237,7 +237,7 @@ python .claude/skills/tether/scripts/rebuild_relaunch.py  # 动到反射
 | `TetherProceduralLibrary` | 程序化内容作者原语 —— point-list-in / point-list-out 的采样 + 过滤 + instancing，跑在编辑器世界。给定 `(params, seed)` 确定可复现：`FRandomStream(Seed)` + `ECC_Visibility` + `bTraceComplex=true`；Poisson-2D / 网格 / 径向 / spline / 网格表面采样器；坡度 / 最近距离 / 蒙版过滤；ISM / HISM 批量生成；Landscape 网格 + project-to-surface（作为普通 Python 数组调用 —— 故意不是 PCG-graph 包装） |
 | `TetherGeometryLibrary` | Geometry Script 封装 —— `UDynamicMesh` 句柄池 + 跨引擎资产 I/O（`copy_mesh_from_static_mesh` / `create_new_static_mesh_asset_from_mesh`）+ 25+ 操作覆盖图元 / 布尔 / 平滑 / 减面 / 位移 / 体素合并 / UV 展开 / bake 法线 + 遮蔽 / 拉伸 / sweep-along-spline / 选择。字段名走标准 UE Python snake_case（`bHasNormals` → `.has_normals`） |
 | `TetherPCGLibrary` | PCG（程序化内容生成）只读 + 触发 —— 不做图编辑（PCG 的领地；agent 写代码不画图）。组件 override get / set、generate / cleanup、资产图内省。整库 5.7+ gate；5.3-5.6 用 stub |
-| `TetherReactive*` | 事件订阅框架，10 个 adapter：运行时（GameplayEvent、AttributeChanged、ActorLifecycle、MovementMode、AnimNotify、InputAction、Timer）与编辑器（AssetEvent、PieState、BpCompiled）；Handler 的注册 / 列表 / 暂停 / 恢复 / 统计；跨会话 JSON 持久化。替代轮询 |
+| `TetherReactive*` | 事件订阅框架，10 个 adapter：运行时（GameplayEvent、AttributeChanged、ActorLifecycle、MovementMode、AnimNotify、InputAction、Timer）与编辑器（AssetEvent、PieState、BpCompiled）；Handler 的注册 / 列表 / 暂停 / 恢复 / 统计；跨会话 JSON 持久化。替代轮询。注册是校验式的、不再静默吞错：属性不存在或 `trigger_event` 不合法时返回空 handler id，而不是入册一个永远不会触发的 handler；`trigger_event` 大小写会被规范化为标准写法。`Throw` 错误策略现在会暂停出错的 handler（stats 里表现为 `bPausedByErrorPolicy`，恢复后重新生效）。暂停状态通过 `paused` 字段跨重启保留；持久化文件损坏时会被改名为 `.corrupt-<时间戳>` 保留现场，不再阻塞后续保存 |
 | `TetherPropertyLibrary` | **特权级通用 UPROPERTY 接口。** 用 `Foo.Bar[N].Baz` 点路径读写任意反射字段 —— 绕开 UE Python 绑定层的访问检查（"is protected and cannot be read" 报错、struct 副本上 EditDefaultsOnly 子字段写入被拒,这正是 GE `Modifiers[0].ModifierMagnitude.ScalableFloatMagnitude.Value` 之类嵌套写入卡死的根因）。`list_u_properties` 返回完整反射(private/protected/裸 UPROPERTY + 解码后的 EPropertyFlags + metadata 全表)；`array_append_u_property` 自动识别 FGameplayTagContainer 维护 ParentTags 缓存；`get_asset_cdo_path` 正确解析 CDO 路径。写操作包 `FScopedTransaction` + 可选 `PostEditChangeChainProperty` 让编辑器实时刷新。 |
 
 ## 协议
@@ -255,11 +255,11 @@ Ping:  {"command":"exact_ping","expected":{...},"request":{}}  →  pong
 状态:  {"command":"exact_editor_status","expected":{...},"request":{}}  →  缓存健康状态
 ```
 
-`request` 嵌套对象确保 exact command 落到旧 Server 时不会出现可执行的顶层 `script`。缺失/错误身份、未知或旧 wire form 都由生产 dispatcher 在任何 command body、work admission 或 GameThread dispatch 前拒绝。`project_path` 是 wire identity 而不是文件系统等价检查：所有平台都要求逐字匹配 discovery/启动值。客户端响应帧上限为 10 MiB，且必须是非空 UTF-8 JSON object。
+`request` 嵌套对象确保 exact command 落到旧 Server 时不会出现可执行的顶层 `script`。缺失/错误身份、未知或旧 wire form 都由生产 dispatcher 在任何 command body、work admission 或 GameThread dispatch 前拒绝。`project_path` 是 wire identity 而不是文件系统等价检查：所有平台都要求逐字匹配 discovery/启动值。客户端响应帧上限为 10 MiB，且必须是非空 UTF-8 JSON object。JSON 解析失败、超出 10 MiB 输入上限、或在容量/关闭中被拒的请求都会收到显式错误帧（`bad_json` / `bad_length` / `capacity` / `shutting_down`），而不是被静默断连。
 
 当 server 绑定非 loopback 时自动启用 token 鉴权；客户端从 `<Project>/Saved/Tether/token.txt` 读取并在每个请求里带上。
 
-脚本在 GameThread 上执行；捕获的 stdout 与 stderr 通过特殊分隔符 `__UB_ERR__` 区分。
+脚本在 GameThread 上执行。用户脚本先被 base64 编码进包装层，捕获到的 stdout 与 stderr 以单一 `__UB_B64__<stdout_b64>|<stderr_b64>__UB_END__` envelope（服务端解码）回传，引号与非 ASCII 输出都完好无损。`success` 只反映执行结果；stderr（警告、日志噪音）保留在 `error` 字段里，`success=true` 时也可能非空。`output` / `error` 各自在服务端被限制在 8 MiB；任一字段被裁剪时响应会带 `"truncated": true` —— 应分页或减少打印量，不要当作脚本已输出全部内容。客户端把超过 10 MiB 的响应帧当作协议错误拒绝，单次响应应控制在该上限之内。服务端会把请求的 exec 超时钳制在最多 300 秒。畸形请求不再被静默断连：JSON 解析失败、超长载荷、容量/关闭中拒绝都会先回一个显式错误帧（`bad_json` / `bad_length` / `capacity` / `shutting_down`）再关闭连接。
 
 ### 服务器配置（CLI / 环境变量 / `EditorPerProjectUserSettings.ini [Tether]`）
 
@@ -276,7 +276,7 @@ Ping:  {"command":"exact_ping","expected":{...},"request":{}}  →  pong
 ```
 Tether/
 ├── Plugin/Tether/         # UE 5.3+ 编辑器插件(C++)
-│   ├── Source/Tether/     #   TCP 服务器 + 桥接库
+│   ├── Source/Tether/     #   TCP 服务器 + Tether 函数库
 │   └── Content/Python/          #   UE Python 环境自动载入的辅助脚本
 ├── .claude/skills/tether/
 │   ├── scripts/                 # tether.py、hot_reload.py、rebuild_relaunch.py
@@ -300,8 +300,9 @@ Tether/
 
 ## 安全
 
-- 所有关卡编辑操作都包在 `FScopedTransaction` 里 —— 编辑器内按 Ctrl+Z 可以撤销桥接做过的任何改动。
+- 所有关卡编辑操作都包在 `FScopedTransaction` 里 —— 编辑器内按 Ctrl+Z 可以撤销 Tether 做过的任何改动。
 - TCP 服务器**默认绑到 `127.0.0.1`**，外网不可达。要开放 LAN 必须显式 `-TetherBind=0.0.0.0 -TetherToken=<密钥>`；非 loopback 绑定若未提供 token，server 会拒绝启动以避免 Python RCE 外漏。
+- **默认配置能 / 不能保证什么：** 绑定回环意味着本机所有进程同权连接 —— token 文件是项目本地可读状态，并不构成同一台机器上进程之间的隔离边界。server 绑定非回环时，token 以明文走 TCP，协议本身没有 TLS；跨主机使用请放在 SSH 隧道（或等价的加密传输）后面，不要直接暴露端口。
 - CLI 发现默认仅限本机；LAN 多播必须显式使用 `--discovery-scope=lan`。
 
 ## 许可证
