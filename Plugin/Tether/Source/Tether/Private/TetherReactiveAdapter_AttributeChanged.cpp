@@ -8,21 +8,8 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogTetherReactiveAttr, Log, All);
 
-namespace TetherReactiveAdapterImpl_Attr
-{
-	FString EscapeSingleQuoted(const FString& In)
-	{
-		FString Out; Out.Reserve(In.Len() + 2);
-		for (TCHAR C : In)
-		{
-			if (C == TEXT('\\') || C == TEXT('\'')) Out.AppendChar(TEXT('\\'));
-			Out.AppendChar(C);
-		}
-		return Out;
-	}
-}
-
-// Shared attribute resolver lives in TetherReactiveShared.h (see include above).
+// Shared attribute resolver + Python-literal helpers live in
+// TetherReactiveShared.h (namespace TetherReactiveUtil).
 
 /**
  * Binds to UAbilitySystemComponent::GetGameplayAttributeValueChangeDelegate(Attr).
@@ -33,6 +20,7 @@ class FTetherAttributeChangedAdapter : public ITetherReactiveAdapter
 {
 public:
 	virtual ETetherTrigger GetTriggerType() const override { return ETetherTrigger::AttributeChanged; }
+	virtual FString GetTriggerName() const override { return TEXT("AttributeChanged"); }
 
 	virtual void OnHandlerAdded(const FTetherHandlerRecord& Record) override
 	{
@@ -46,7 +34,7 @@ public:
 		}
 
 		const FString AttrString = Record.Selector.ToString();
-		const FGameplayAttribute Attr = TetherReactiveAdapterImpl_Attr::ResolveAttribute(ASC, AttrString);
+		const FGameplayAttribute Attr = TetherReactiveUtil::ResolveAttribute(ASC, AttrString);
 		// The library entry point pre-checks this, but restore paths can reach
 		// the adapter with a stale ASC state — guard the delegate bind too.
 		if (!Attr.IsValid())
@@ -84,7 +72,7 @@ public:
 				TMap<FString, FString> Ctx;
 				Ctx.Add(TEXT("trigger"),        TEXT("'attribute_changed'"));
 				Ctx.Add(TEXT("attribute_name"), FString::Printf(TEXT("'%s'"),
-					*TetherReactiveAdapterImpl_Attr::EscapeSingleQuoted(AttrStrCapture)));
+					*TetherReactiveUtil::EscapePythonStringLiteral(AttrStrCapture)));
 				Ctx.Add(TEXT("new_value"),      FString::Printf(TEXT("%f"), Data.NewValue));
 				Ctx.Add(TEXT("old_value"),      FString::Printf(TEXT("%f"), Data.OldValue));
 				Ctx.Add(TEXT("delta"),          FString::Printf(TEXT("%f"), Data.NewValue - Data.OldValue));

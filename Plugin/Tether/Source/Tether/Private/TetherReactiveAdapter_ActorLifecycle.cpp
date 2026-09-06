@@ -1,6 +1,7 @@
 #include "TetherReactiveAdapter.h"
 #include "TetherReactiveSubsystem.h"
 #include "TetherReactiveListeners.h"
+#include "TetherReactiveShared.h"
 #include "GameFramework/Actor.h"
 #include "UObject/StrongObjectPtr.h"
 
@@ -8,17 +9,6 @@ DEFINE_LOG_CATEGORY_STATIC(LogTetherReactiveLife, Log, All);
 
 namespace TetherReactiveAdapterImpl_Lifecycle
 {
-	FString EscapeSingleQuoted(const FString& In)
-	{
-		FString Out; Out.Reserve(In.Len() + 2);
-		for (TCHAR C : In)
-		{
-			if (C == TEXT('\\') || C == TEXT('\'')) Out.AppendChar(TEXT('\\'));
-			Out.AppendChar(C);
-		}
-		return Out;
-	}
-
 	FString EndPlayReasonName(EEndPlayReason::Type R)
 	{
 		switch (R)
@@ -45,6 +35,7 @@ class FTetherActorLifecycleAdapter : public ITetherReactiveAdapter
 {
 public:
 	virtual ETetherTrigger GetTriggerType() const override { return ETetherTrigger::ActorLifecycle; }
+	virtual FString GetTriggerName() const override { return TEXT("ActorLifecycle"); }
 
 	virtual void OnHandlerAdded(const FTetherHandlerRecord& Record) override
 	{
@@ -189,11 +180,10 @@ private:
 		TMap<FString, FString> Ctx;
 		Ctx.Add(TEXT("trigger"), TEXT("'actor_lifecycle'"));
 		Ctx.Add(TEXT("event"),   FString::Printf(TEXT("'%s'"), *Event.ToString()));
-		Ctx.Add(TEXT("actor"),   FString::Printf(TEXT("unreal.load_object(None, '%s')"),
-			*TetherReactiveAdapterImpl_Lifecycle::EscapeSingleQuoted(Actor->GetPathName())));
+		Ctx.Add(TEXT("actor"),   TetherReactiveUtil::RenderPyObjectLiteral(Actor));
 		Ctx.Add(TEXT("end_play_reason"),
 			FString::Printf(TEXT("'%s'"),
-				*TetherReactiveAdapterImpl_Lifecycle::EscapeSingleQuoted(ReasonName)));
+				*TetherReactiveUtil::EscapePythonStringLiteral(ReasonName)));
 		Sub->Dispatch(ETetherTrigger::ActorLifecycle, TWeakObjectPtr<UObject>(Actor), Event, Ctx);
 	}
 

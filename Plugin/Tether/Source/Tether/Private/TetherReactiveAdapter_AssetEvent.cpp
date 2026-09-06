@@ -1,24 +1,11 @@
 #include "TetherReactiveAdapter.h"
 #include "TetherReactiveSubsystem.h"
+#include "TetherReactiveShared.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetRegistry/IAssetRegistry.h"
 #include "AssetRegistry/AssetData.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogTetherReactiveAsset, Log, All);
-
-namespace TetherReactiveAdapterImpl_Asset
-{
-	FString EscapeSingleQuoted(const FString& In)
-	{
-		FString Out; Out.Reserve(In.Len() + 2);
-		for (TCHAR C : In)
-		{
-			if (C == TEXT('\\') || C == TEXT('\'')) Out.AppendChar(TEXT('\\'));
-			Out.AppendChar(C);
-		}
-		return Out;
-	}
-}
 
 /**
  * Binds AssetRegistry's Added/Removed/Renamed/Updated multicasts. All handlers
@@ -33,6 +20,7 @@ class FTetherAssetEventAdapter : public ITetherReactiveAdapter
 {
 public:
 	virtual ETetherTrigger GetTriggerType() const override { return ETetherTrigger::AssetEvent; }
+	virtual FString GetTriggerName() const override { return TEXT("AssetEvent"); }
 
 	virtual void OnHandlerAdded(const FTetherHandlerRecord& /*Record*/) override
 	{
@@ -116,14 +104,17 @@ private:
 		const FString AssetClass  = Data.AssetClassPath.GetAssetName().ToString();
 		const FString PackageName = Data.PackageName.ToString();
 
-		using namespace TetherReactiveAdapterImpl_Asset;
 		TMap<FString, FString> Ctx;
 		Ctx.Add(TEXT("trigger"),      TEXT("'asset_event'"));
 		Ctx.Add(TEXT("event"),        FString::Printf(TEXT("'%s'"), EventName));
-		Ctx.Add(TEXT("asset_path"),   FString::Printf(TEXT("'%s'"), *EscapeSingleQuoted(AssetPath)));
-		Ctx.Add(TEXT("asset_class"),  FString::Printf(TEXT("'%s'"), *EscapeSingleQuoted(AssetClass)));
-		Ctx.Add(TEXT("package_name"), FString::Printf(TEXT("'%s'"), *EscapeSingleQuoted(PackageName)));
-		Ctx.Add(TEXT("old_path"),     FString::Printf(TEXT("'%s'"), *EscapeSingleQuoted(OldObjectPath)));
+		Ctx.Add(TEXT("asset_path"),   FString::Printf(TEXT("'%s'"),
+			*TetherReactiveUtil::EscapePythonStringLiteral(AssetPath)));
+		Ctx.Add(TEXT("asset_class"),  FString::Printf(TEXT("'%s'"),
+			*TetherReactiveUtil::EscapePythonStringLiteral(AssetClass)));
+		Ctx.Add(TEXT("package_name"), FString::Printf(TEXT("'%s'"),
+			*TetherReactiveUtil::EscapePythonStringLiteral(PackageName)));
+		Ctx.Add(TEXT("old_path"),     FString::Printf(TEXT("'%s'"),
+			*TetherReactiveUtil::EscapePythonStringLiteral(OldObjectPath)));
 
 		Sub->Dispatch(ETetherTrigger::AssetEvent,
 			TWeakObjectPtr<UObject>(),   // always global

@@ -23,56 +23,9 @@ DEFINE_LOG_CATEGORY_STATIC(LogTetherReactiveLib, Log, All);
 
 namespace TetherReactiveLibImpl
 {
-	/**
-	 * Resolve a UAbilitySystemComponent from an actor across the common GAS
-	 * placement patterns: directly on the actor (single-player), on its
-	 * PlayerState (multiplayer-friendly, this project's pattern), or on its
-	 * Controller. Walks via IAbilitySystemInterface first, falls back to
-	 * component lookup at each level.
-	 */
-	UAbilitySystemComponent* ResolveActorASC(AActor* Actor)
-	{
-		if (!Actor)
-		{
-			return nullptr;
-		}
-
-		auto FromObject = [](UObject* Obj) -> UAbilitySystemComponent*
-		{
-			if (!Obj) return nullptr;
-			if (IAbilitySystemInterface* I = Cast<IAbilitySystemInterface>(Obj))
-			{
-				if (UAbilitySystemComponent* ASC = I->GetAbilitySystemComponent())
-				{
-					return ASC;
-				}
-			}
-			if (AActor* A = Cast<AActor>(Obj))
-			{
-				return A->FindComponentByClass<UAbilitySystemComponent>();
-			}
-			return nullptr;
-		};
-
-		if (UAbilitySystemComponent* ASC = FromObject(Actor)) return ASC;
-
-		if (APawn* Pawn = Cast<APawn>(Actor))
-		{
-			if (APlayerState* PS = Pawn->GetPlayerState())
-			{
-				if (UAbilitySystemComponent* ASC = FromObject(PS)) return ASC;
-			}
-			if (AController* Ctrl = Pawn->GetController())
-			{
-				if (UAbilitySystemComponent* ASC = FromObject(Ctrl)) return ASC;
-				if (APlayerController* PC = Cast<APlayerController>(Ctrl))
-				{
-					if (UAbilitySystemComponent* ASC = FromObject(PC->PlayerState)) return ASC;
-				}
-			}
-		}
-		return nullptr;
-	}
+	// ResolveActorASC lives in TetherReactiveShared.h (namespace
+	// TetherReactiveUtil) so the GameplayEvent adapter and this library share
+	// one implementation.
 
 	/** Find an actor by FName or label across all editor world contexts (PIE first). */
 	AActor* FindActorByName(const FString& NameOrLabel)
@@ -228,7 +181,7 @@ FString UTetherReactiveLibrary::RegisterRuntimeGameplayEvent(
 				*TargetActorName);
 			return FString();
 		}
-		ASC = TetherReactiveLibImpl::ResolveActorASC(TargetActor);
+		ASC = TetherReactiveUtil::ResolveActorASC(TargetActor);
 		if (!ASC)
 		{
 			UE_LOG(LogTetherReactiveLib, Warning,
@@ -313,7 +266,7 @@ FString UTetherReactiveLibrary::RegisterRuntimeAttributeChanged(
 			TEXT("RegisterRuntimeAttributeChanged: actor '%s' not found"), *TargetActorName);
 		return FString();
 	}
-	UAbilitySystemComponent* ASC = TetherReactiveLibImpl::ResolveActorASC(Actor);
+	UAbilitySystemComponent* ASC = TetherReactiveUtil::ResolveActorASC(Actor);
 	if (!ASC)
 	{
 		UE_LOG(LogTetherReactiveLib, Warning,
@@ -331,7 +284,7 @@ FString UTetherReactiveLibrary::RegisterRuntimeAttributeChanged(
 	// whose adapter-side binding silently fails (it can only log), so the
 	// handler never fires. Refuse registration instead: empty HandlerId,
 	// nothing stored, nothing persisted.
-	if (!TetherReactiveAdapterImpl_Attr::ResolveAttribute(ASC, AttributeName).IsValid())
+	if (!TetherReactiveUtil::ResolveAttribute(ASC, AttributeName).IsValid())
 	{
 		UE_LOG(LogTetherReactiveLib, Warning,
 			TEXT("RegisterRuntimeAttributeChanged: attribute '%s' not found on ASC's spawned sets (actor '%s')"),
@@ -864,6 +817,7 @@ bool UTetherReactiveLibrary::ResolveForRestore(FTetherHandlerRecord& Record)
 	// deferred resolution attempt; a subsequent save will prune it.
 
 	using namespace TetherReactiveLibImpl;
+	using namespace TetherReactiveUtil;
 	const TMap<FString, FString>& Ctx = Record.RegistrationContext;
 
 	auto GetOrEmpty = [&Ctx](const TCHAR* Key) -> FString

@@ -1,6 +1,7 @@
 #include "TetherReactiveAdapter.h"
 #include "TetherReactiveSubsystem.h"
 #include "TetherReactiveListeners.h"
+#include "TetherReactiveShared.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "UObject/StrongObjectPtr.h"
@@ -9,17 +10,6 @@ DEFINE_LOG_CATEGORY_STATIC(LogTetherReactiveMove, Log, All);
 
 namespace TetherReactiveAdapterImpl_Move
 {
-	FString EscapeSingleQuoted(const FString& In)
-	{
-		FString Out; Out.Reserve(In.Len() + 2);
-		for (TCHAR C : In)
-		{
-			if (C == TEXT('\\') || C == TEXT('\'')) Out.AppendChar(TEXT('\\'));
-			Out.AppendChar(C);
-		}
-		return Out;
-	}
-
 	FString MovementModeName(EMovementMode M)
 	{
 		switch (M)
@@ -45,6 +35,7 @@ class FTetherMovementModeAdapter : public ITetherReactiveAdapter
 {
 public:
 	virtual ETetherTrigger GetTriggerType() const override { return ETetherTrigger::MovementModeChanged; }
+	virtual FString GetTriggerName() const override { return TEXT("MovementModeChanged"); }
 
 	virtual void OnHandlerAdded(const FTetherHandlerRecord& Record) override
 	{
@@ -138,8 +129,7 @@ public:
 
 		TMap<FString, FString> Ctx;
 		Ctx.Add(TEXT("trigger"),             TEXT("'movement_mode_changed'"));
-		Ctx.Add(TEXT("character"),           FString::Printf(TEXT("unreal.load_object(None, '%s')"),
-			*TetherReactiveAdapterImpl_Move::EscapeSingleQuoted(Char->GetPathName())));
+		Ctx.Add(TEXT("character"),           TetherReactiveUtil::RenderPyObjectLiteral(Char));
 		Ctx.Add(TEXT("prev_mode"),           FString::Printf(TEXT("%d"), static_cast<int32>(PrevMode)));
 		Ctx.Add(TEXT("prev_mode_name"),      FString::Printf(TEXT("'%s'"),
 			*TetherReactiveAdapterImpl_Move::MovementModeName(PrevMode)));

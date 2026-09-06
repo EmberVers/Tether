@@ -24,6 +24,15 @@ public:
 	virtual ETetherTrigger GetTriggerType() const = 0;
 
 	/**
+	 * Canonical name of this adapter's trigger type — the string persisted in
+	 * the handler JSON ("trigger_type") and surfaced by ListAllHandlers /
+	 * DescribeTriggerContext. Owning the name here means a new adapter can
+	 * never be silently misnamed "None" by a switch the author forgot to
+	 * extend: the value lives next to GetTriggerType().
+	 */
+	virtual FString GetTriggerName() const = 0;
+
+	/**
 	 * Called after a handler is added to the registry. Adapter binds the
 	 * underlying UE delegate if this is the first handler on (Subject,
 	 * Selector); otherwise just records that another handler is interested.

@@ -1,6 +1,7 @@
 #include "TetherReactiveAdapter.h"
 #include "TetherReactiveSubsystem.h"
 #include "TetherReactiveListeners.h"
+#include "TetherReactiveShared.h"
 #include "EnhancedInputComponent.h"
 #include "InputAction.h"
 #include "InputActionValue.h"
@@ -13,17 +14,6 @@ DEFINE_LOG_CATEGORY_STATIC(LogTetherReactiveInput, Log, All);
 
 namespace TetherReactiveAdapterImpl_Input
 {
-	FString EscapeSingleQuoted(const FString& In)
-	{
-		FString Out; Out.Reserve(In.Len() + 2);
-		for (TCHAR C : In)
-		{
-			if (C == TEXT('\\') || C == TEXT('\'')) Out.AppendChar(TEXT('\\'));
-			Out.AppendChar(C);
-		}
-		return Out;
-	}
-
 	FString TriggerEventName(ETriggerEvent E)
 	{
 		switch (E)
@@ -65,6 +55,7 @@ class FTetherInputActionAdapter : public ITetherReactiveAdapter
 {
 public:
 	virtual ETetherTrigger GetTriggerType() const override { return ETetherTrigger::InputAction; }
+	virtual FString GetTriggerName() const override { return TEXT("InputAction"); }
 
 	virtual void OnHandlerAdded(const FTetherHandlerRecord& Record) override
 	{
@@ -237,9 +228,9 @@ public:
 		TMap<FString, FString> Ctx;
 		Ctx.Add(TEXT("trigger"),       TEXT("'input_action'"));
 		Ctx.Add(TEXT("action_path"),   FString::Printf(TEXT("'%s'"),
-			*TetherReactiveAdapterImpl_Input::EscapeSingleQuoted(IAPath)));
+			*TetherReactiveUtil::EscapePythonStringLiteral(IAPath)));
 		Ctx.Add(TEXT("action_name"),   FString::Printf(TEXT("'%s'"),
-			*TetherReactiveAdapterImpl_Input::EscapeSingleQuoted(IAName)));
+			*TetherReactiveUtil::EscapePythonStringLiteral(IAName)));
 		Ctx.Add(TEXT("trigger_event"), FString::Printf(TEXT("'%s'"), *EventName));
 		Ctx.Add(TEXT("value_type"),    FString::Printf(TEXT("'%s'"), *VTName()));
 		Ctx.Add(TEXT("value_bool"),    Value.Get<bool>() ? TEXT("True") : TEXT("False"));

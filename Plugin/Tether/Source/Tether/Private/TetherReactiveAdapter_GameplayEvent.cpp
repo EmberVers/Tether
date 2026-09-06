@@ -1,5 +1,6 @@
 #include "TetherReactiveAdapter.h"
 #include "TetherReactiveSubsystem.h"
+#include "TetherReactiveShared.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemInterface.h"
 #include "Editor.h"
@@ -18,33 +19,6 @@ DEFINE_LOG_CATEGORY_STATIC(LogTetherReactiveGE, Log, All);
 
 namespace TetherReactiveAdapterImpl_GE
 {
-	/** Escape a string for embedding inside a single-quoted Python literal. */
-	FString EscapeSingleQuoted(const FString& In)
-	{
-		FString Out;
-		Out.Reserve(In.Len() + 2);
-		for (TCHAR C : In)
-		{
-			if (C == TEXT('\\') || C == TEXT('\''))
-			{
-				Out.AppendChar(TEXT('\\'));
-			}
-			Out.AppendChar(C);
-		}
-		return Out;
-	}
-
-	/** Render a UObject* as a Python expression ("unreal.load_object(None, '/path')" or "None"). */
-	FString RenderObjectLiteral(const UObject* Obj)
-	{
-		if (!Obj)
-		{
-			return TEXT("None");
-		}
-		const FString Path = Obj->GetPathName();
-		return FString::Printf(TEXT("unreal.load_object(None, '%s')"), *EscapeSingleQuoted(Path));
-	}
-
 	FString RenderTagContainerLiteral(const FGameplayTagContainer& Tags)
 	{
 		if (Tags.Num() == 0)
@@ -57,52 +31,11 @@ namespace TetherReactiveAdapterImpl_GE
 		{
 			if (!bFirst) Out += TEXT(", ");
 			bFirst = false;
-			Out += FString::Printf(TEXT("'%s'"), *EscapeSingleQuoted(Tag.ToString()));
+			Out += FString::Printf(TEXT("'%s'"),
+				*TetherReactiveUtil::EscapePythonStringLiteral(Tag.ToString()));
 		}
 		Out += TEXT("]");
 		return Out;
-	}
-
-	/**
-	 * Resolve an ASC from an actor across the standard placement patterns.
-	 * Duplicate of TetherReactiveLibrary's ResolveActorASC — kept local
-	 * so the adapter is self-contained and doesn't depend on the library cpp.
-	 */
-	UAbilitySystemComponent* ResolveActorASC(AActor* Actor)
-	{
-		if (!Actor) return nullptr;
-
-		auto FromObject = [](UObject* Obj) -> UAbilitySystemComponent*
-		{
-			if (!Obj) return nullptr;
-			if (IAbilitySystemInterface* I = Cast<IAbilitySystemInterface>(Obj))
-			{
-				if (UAbilitySystemComponent* ASC = I->GetAbilitySystemComponent()) return ASC;
-			}
-			if (AActor* A = Cast<AActor>(Obj))
-			{
-				return A->FindComponentByClass<UAbilitySystemComponent>();
-			}
-			return nullptr;
-		};
-
-		if (UAbilitySystemComponent* ASC = FromObject(Actor)) return ASC;
-		if (APawn* Pawn = Cast<APawn>(Actor))
-		{
-			if (APlayerState* PS = Pawn->GetPlayerState())
-			{
-				if (UAbilitySystemComponent* ASC = FromObject(PS)) return ASC;
-			}
-			if (AController* Ctrl = Pawn->GetController())
-			{
-				if (UAbilitySystemComponent* ASC = FromObject(Ctrl)) return ASC;
-				if (APlayerController* PC = Cast<APlayerController>(Ctrl))
-				{
-					if (UAbilitySystemComponent* ASC = FromObject(PC->PlayerState)) return ASC;
-				}
-			}
-		}
-		return nullptr;
 	}
 
 	/** True for PIE / PIE-server worlds. Editor-world ASCs (asset previews) excluded. */
@@ -137,6 +70,7 @@ class FTetherGameplayEventAdapter : public ITetherReactiveAdapter
 {
 public:
 	virtual ETetherTrigger GetTriggerType() const override { return ETetherTrigger::GameplayEvent; }
+	virtual FString GetTriggerName() const override { return TEXT("GameplayEvent"); }
 
 	virtual void OnHandlerAdded(const FTetherHandlerRecord& Record) override
 	{
@@ -353,19 +287,19 @@ private:
 				TMap<FString, FString> Ctx;
 				Ctx.Add(TEXT("trigger"),    TEXT("'gameplay_event'"));
 				Ctx.Add(TEXT("tag"),        FString::Printf(TEXT("'%s'"),
-					*TetherReactiveAdapterImpl_GE::EscapeSingleQuoted(CaptureTag.ToString())));
-				Ctx.Add(TEXT("source_asc"), TetherReactiveAdapterImpl_GE::RenderObjectLiteral(SourceASC));
+					*TetherReactiveUtil::EscapePythonStringLiteral(CaptureTag.ToString())));
+				Ctx.Add(TEXT("source_asc"), TetherReactiveUtil::RenderPyObjectLiteral(SourceASC));
 
 				if (EventData)
 				{
 					Ctx.Add(TEXT("event_instigator"),
-						TetherReactiveAdapterImpl_GE::RenderObjectLiteral(EventData->Instigator.Get()));
+						TetherReactiveUtil::RenderPyObjectLiteral(EventData->Instigator.Get()));
 					Ctx.Add(TEXT("event_target"),
-						TetherReactiveAdapterImpl_GE::RenderObjectLiteral(EventData->Target.Get()));
+						TetherReactiveUtil::RenderPyObjectLiteral(EventData->Target.Get()));
 					Ctx.Add(TEXT("event_optional_object"),
-						TetherReactiveAdapterImpl_GE::RenderObjectLiteral(EventData->OptionalObject.Get()));
+						TetherReactiveUtil::RenderPyObjectLiteral(EventData->OptionalObject.Get()));
 					Ctx.Add(TEXT("event_optional_object2"),
-						TetherReactiveAdapterImpl_GE::RenderObjectLiteral(EventData->OptionalObject2.Get()));
+						TetherReactiveUtil::RenderPyObjectLiteral(EventData->OptionalObject2.Get()));
 					Ctx.Add(TEXT("event_magnitude"),
 						FString::Printf(TEXT("%f"), EventData->EventMagnitude));
 					Ctx.Add(TEXT("event_instigator_tags"),
@@ -420,7 +354,7 @@ private:
 			if (!TetherReactiveAdapterImpl_GE::IsPieWorld(W)) continue;
 			for (TActorIterator<AActor> It(W); It; ++It)
 			{
-				if (UAbilitySystemComponent* ASC = TetherReactiveAdapterImpl_GE::ResolveActorASC(*It))
+				if (UAbilitySystemComponent* ASC = TetherReactiveUtil::ResolveActorASC(*It))
 				{
 					EnsureBinding(ASC, Tag, /*bForGlobal=*/true);
 				}
@@ -520,7 +454,7 @@ private:
 	void OnPieActorSpawned(AActor* SpawnedActor)
 	{
 		if (!SpawnedActor || GlobalTagCounts.Num() == 0) return;
-		if (UAbilitySystemComponent* ASC = TetherReactiveAdapterImpl_GE::ResolveActorASC(SpawnedActor))
+		if (UAbilitySystemComponent* ASC = TetherReactiveUtil::ResolveActorASC(SpawnedActor))
 		{
 			BindAllGlobalTagsToASC(ASC);
 			return;
@@ -535,7 +469,7 @@ private:
 			{
 				if (AActor* A = WeakActor.Get())
 				{
-					if (UAbilitySystemComponent* ASC = TetherReactiveAdapterImpl_GE::ResolveActorASC(A))
+					if (UAbilitySystemComponent* ASC = TetherReactiveUtil::ResolveActorASC(A))
 					{
 						BindAllGlobalTagsToASC(ASC);
 					}

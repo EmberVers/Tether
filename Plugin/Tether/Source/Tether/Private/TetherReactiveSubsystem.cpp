@@ -1,6 +1,7 @@
 #include "TetherReactiveSubsystem.h"
 #include "TetherReactiveAdapter.h"
 #include "TetherReactiveLibrary.h"
+#include "TetherReactiveShared.h"
 #include "IPythonScriptPlugin.h"
 #include "PythonScriptTypes.h"
 #include "Editor.h"
@@ -43,23 +44,10 @@ namespace TetherReactiveImpl
 	/** Emit a warning at this depth before hitting the hard cap. */
 	constexpr int32 WarnDispatchDepth = 8;
 
-	FString TriggerTypeName(ETetherTrigger T)
-	{
-		switch (T)
-		{
-		case ETetherTrigger::GameplayEvent:        return TEXT("GameplayEvent");
-		case ETetherTrigger::AnimNotify:           return TEXT("AnimNotify");
-		case ETetherTrigger::AttributeChanged:     return TEXT("AttributeChanged");
-		case ETetherTrigger::MovementModeChanged:  return TEXT("MovementModeChanged");
-		case ETetherTrigger::InputAction:          return TEXT("InputAction");
-		case ETetherTrigger::ActorLifecycle:       return TEXT("ActorLifecycle");
-		case ETetherTrigger::Timer:                return TEXT("Timer");
-		case ETetherTrigger::AssetEvent:           return TEXT("AssetEvent");
-		case ETetherTrigger::PieEvent:             return TEXT("PieEvent");
-		case ETetherTrigger::BpCompiled:           return TEXT("BpCompiled");
-		default:                                   return TEXT("None");
-		}
-	}
+	// TriggerTypeName: the canonical per-trigger name is owned by each adapter
+	// (ITetherReactiveAdapter::GetTriggerName); the subsystem resolves it via
+	// FindAdapter so adding a trigger never requires extending a parallel
+	// switch here. See UTetherReactiveSubsystem::TriggerNameFor.
 
 	FString LifetimeName(ETetherHandlerLifetime L)
 	{
@@ -85,40 +73,17 @@ namespace TetherReactiveImpl
 		}
 	}
 
-	FString EscapePythonStringLiteral(const FString& In)
-	{
-		FString Out;
-		Out.Reserve(In.Len() + 2);
-		for (TCHAR C : In)
-		{
-			if (C == TEXT('\\') || C == TEXT('\''))
-			{
-				Out.AppendChar(TEXT('\\'));
-				Out.AppendChar(C);
-			}
-			else if (C == TEXT('\n'))
-			{
-				Out.Append(TEXT("\\n"));
-			}
-			else if (C == TEXT('\r'))
-			{
-				Out.Append(TEXT("\\r"));
-			}
-			else
-			{
-				Out.AppendChar(C);
-			}
-		}
-		return Out;
-	}
+	// EscapePythonStringLiteral / RenderPyObjectLiteral live in
+	// TetherReactiveShared.h (namespace TetherReactiveUtil), shared with the
+	// adapters.
 
-	FString BuildSummaryTrigger(ETetherTrigger T, const FName& Selector)
+	FString BuildSummaryTrigger(const FString& TriggerName, const FName& Selector)
 	{
 		if (Selector.IsNone())
 		{
-			return TriggerTypeName(T);
+			return TriggerName;
 		}
-		return FString::Printf(TEXT("%s:%s"), *TriggerTypeName(T), *Selector.ToString());
+		return FString::Printf(TEXT("%s:%s"), *TriggerName, *Selector.ToString());
 	}
 
 	FString BuildSubjectPath(const TWeakObjectPtr<UObject>& Subject)
@@ -307,12 +272,25 @@ ITetherReactiveAdapter* UTetherReactiveSubsystem::FindAdapter(ETetherTrigger Tri
 	return nullptr;
 }
 
+FString UTetherReactiveSubsystem::TriggerNameFor(ETetherTrigger TriggerType) const
+{
+	// Canonical names are owned by the adapters (GetTriggerName); this used to
+	// be a switch in TetherReactiveImpl that a new trigger could silently miss,
+	// degrading ListAllHandlers to "None". Missing adapter (or trigger None)
+	// still yields "None" — exactly the old default-branch behaviour.
+	if (const ITetherReactiveAdapter* A = FindAdapter(TriggerType))
+	{
+		return A->GetTriggerName();
+	}
+	return TEXT("None");
+}
+
 TMap<FString, FString> UTetherReactiveSubsystem::DescribeTriggerContext(const FString& TriggerTypeName) const
 {
 	for (const TUniquePtr<ITetherReactiveAdapter>& A : Adapters)
 	{
 		if (A.IsValid() &&
-			TetherReactiveImpl::TriggerTypeName(A->GetTriggerType()) == TriggerTypeName)
+			A->GetTriggerName() == TriggerTypeName)
 		{
 			return A->DescribeContext();
 		}
@@ -367,7 +345,7 @@ FString UTetherReactiveSubsystem::RegisterHandler(FTetherHandlerRecord&& Record)
 	{
 		UE_LOG(LogTetherReactive, Warning,
 			TEXT("RegisterHandler refused: no adapter for trigger '%s' (not yet implemented?)."),
-			*TetherReactiveImpl::TriggerTypeName(Record.TriggerType));
+			*TriggerNameFor(Record.TriggerType));
 		return FString();
 	}
 
@@ -387,7 +365,7 @@ FString UTetherReactiveSubsystem::RegisterHandler(FTetherHandlerRecord&& Record)
 	UE_LOG(LogTetherReactive, Log,
 		TEXT("registered handler %s '%s' (%s)"),
 		*Id, *Shared->TaskName,
-		*TetherReactiveImpl::BuildSummaryTrigger(Shared->TriggerType, Shared->Selector));
+		*TetherReactiveImpl::BuildSummaryTrigger(TriggerNameFor(Shared->TriggerType), Shared->Selector));
 	MarkDirty();
 	return Id;
 }
@@ -475,7 +453,7 @@ TArray<FTetherHandlerSummary> UTetherReactiveSubsystem::ListAllHandlers(
 			continue;
 		}
 		if (!FilterTriggerTypeName.IsEmpty() &&
-			TetherReactiveImpl::TriggerTypeName(R.TriggerType) != FilterTriggerTypeName)
+			TriggerNameFor(R.TriggerType) != FilterTriggerTypeName)
 		{
 			continue;
 		}
@@ -503,7 +481,7 @@ TArray<FTetherHandlerSummary> UTetherReactiveSubsystem::ListAllHandlers(
 		S.Scope = R.Scope;
 		S.TaskName = R.TaskName;
 		S.Description = R.Description;
-		S.TriggerSummary = TetherReactiveImpl::BuildSummaryTrigger(R.TriggerType, R.Selector);
+		S.TriggerSummary = TetherReactiveImpl::BuildSummaryTrigger(TriggerNameFor(R.TriggerType), R.Selector);
 		S.SubjectPath = TetherReactiveImpl::BuildSubjectPath(R.Subject);
 		S.ScriptPath = R.ScriptPath;
 		S.Tags = R.Tags;
@@ -534,7 +512,7 @@ bool UTetherReactiveSubsystem::GetHandler(const FString& HandlerId, FTetherHandl
 	S.Scope = R.Scope;
 	S.TaskName = R.TaskName;
 	S.Description = R.Description;
-	S.TriggerSummary = TetherReactiveImpl::BuildSummaryTrigger(R.TriggerType, R.Selector);
+	S.TriggerSummary = TetherReactiveImpl::BuildSummaryTrigger(TriggerNameFor(R.TriggerType), R.Selector);
 	S.SubjectPath = TetherReactiveImpl::BuildSubjectPath(R.Subject);
 	S.ScriptPath = R.ScriptPath;
 	S.Tags = R.Tags;
@@ -832,12 +810,12 @@ FString UTetherReactiveSubsystem::BuildWrappedScript(
 	for (const auto& Pair : ContextLiterals)
 	{
 		CtxBody += FString::Printf(TEXT("    '%s': %s,\n"),
-			*TetherReactiveImpl::EscapePythonStringLiteral(Pair.Key),
+			*TetherReactiveUtil::EscapePythonStringLiteral(Pair.Key),
 			*Pair.Value);
 	}
 
-	const FString TaskNameEsc = TetherReactiveImpl::EscapePythonStringLiteral(Record.TaskName);
-	const FString HandlerIdEsc = TetherReactiveImpl::EscapePythonStringLiteral(Record.HandlerId);
+	const FString TaskNameEsc = TetherReactiveUtil::EscapePythonStringLiteral(Record.TaskName);
+	const FString HandlerIdEsc = TetherReactiveUtil::EscapePythonStringLiteral(Record.HandlerId);
 
 	// Preamble sets up ctx + convenience names + state dicts + log/defer helpers,
 	// then runs the user script inside a try/except that prints the traceback on
@@ -1047,7 +1025,7 @@ FString UTetherReactiveSubsystem::RestoreSingleRecord(FTetherHandlerRecord&& Rec
 	{
 		UE_LOG(LogTetherReactive, Warning,
 			TEXT("RestoreSingleRecord refused: no adapter for trigger '%s'"),
-			*TetherReactiveImpl::TriggerTypeName(Record.TriggerType));
+			*TriggerNameFor(Record.TriggerType));
 		return FString();
 	}
 	// Caller is expected to have preserved HandlerId + pre-resolved Subject/
@@ -1107,7 +1085,7 @@ void UTetherReactiveSubsystem::RetryDeferredHandlers()
 // JSON helpers — build a JSON handler array + seq counters.
 namespace TetherReactivePersistenceImpl
 {
-	TSharedPtr<FJsonObject> RecordToJson(const FTetherHandlerRecord& R)
+	TSharedPtr<FJsonObject> RecordToJson(const FTetherHandlerRecord& R, const FString& TriggerName)
 	{
 		TSharedPtr<FJsonObject> O = MakeShared<FJsonObject>();
 		O->SetStringField(TEXT("handler_id"),     R.HandlerId);
@@ -1119,7 +1097,7 @@ namespace TetherReactivePersistenceImpl
 		O->SetArrayField(TEXT("tags"), TagsJson);
 		O->SetStringField(TEXT("script"),         R.Script);
 		O->SetStringField(TEXT("script_path"),    R.ScriptPath);
-		O->SetStringField(TEXT("trigger_type"),   TetherReactiveImpl::TriggerTypeName(R.TriggerType));
+		O->SetStringField(TEXT("trigger_type"),   TriggerName);
 		TSharedPtr<FJsonObject> Reg = MakeShared<FJsonObject>();
 		for (const auto& Pair : R.RegistrationContext)
 		{
@@ -1236,14 +1214,14 @@ FString UTetherReactiveSubsystem::BuildPersistenceJson() const
 	{
 		const FTetherHandlerRecord& R = *Pair.Value;
 		if (R.Lifetime == ETetherHandlerLifetime::WhilePIE) continue;
-		HandlersArr.Add(MakeShared<FJsonValueObject>(RecordToJson(R)));
+		HandlersArr.Add(MakeShared<FJsonValueObject>(RecordToJson(R, TriggerNameFor(R.TriggerType))));
 	}
 	// Deferred handlers: keep them persisted too, so a session that never
 	// starts PIE doesn't lose its pending restore records.
 	for (const FTetherHandlerRecord& R : DeferredHandlers)
 	{
 		if (R.Lifetime == ETetherHandlerLifetime::WhilePIE) continue;
-		HandlersArr.Add(MakeShared<FJsonValueObject>(RecordToJson(R)));
+		HandlersArr.Add(MakeShared<FJsonValueObject>(RecordToJson(R, TriggerNameFor(R.TriggerType))));
 	}
 	Root->SetArrayField(TEXT("handlers"), HandlersArr);
 

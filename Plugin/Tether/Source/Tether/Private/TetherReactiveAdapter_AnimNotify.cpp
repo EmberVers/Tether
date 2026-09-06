@@ -1,6 +1,7 @@
 #include "TetherReactiveAdapter.h"
 #include "TetherReactiveSubsystem.h"
 #include "TetherReactiveListeners.h"
+#include "TetherReactiveShared.h"
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimMontage.h"
 #include "Animation/AnimNotifyQueue.h"
@@ -10,27 +11,6 @@
 #include "UObject/StrongObjectPtr.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogTetherReactiveAnim, Log, All);
-
-namespace TetherReactiveAdapterImpl_Anim
-{
-	FString EscapeSingleQuoted(const FString& In)
-	{
-		FString Out; Out.Reserve(In.Len() + 2);
-		for (TCHAR C : In)
-		{
-			if (C == TEXT('\\') || C == TEXT('\'')) Out.AppendChar(TEXT('\\'));
-			Out.AppendChar(C);
-		}
-		return Out;
-	}
-
-	FString RenderObject(const UObject* O)
-	{
-		if (!O) return TEXT("None");
-		return FString::Printf(TEXT("unreal.load_object(None, '%s')"),
-			*EscapeSingleQuoted(O->GetPathName()));
-	}
-}
 
 /**
  * Binds UAnimInstance::OnPlayMontageNotifyBegin (dynamic). The dynamic delegate
@@ -42,6 +22,7 @@ class FTetherAnimNotifyAdapter : public ITetherReactiveAdapter
 {
 public:
 	virtual ETetherTrigger GetTriggerType() const override { return ETetherTrigger::AnimNotify; }
+	virtual FString GetTriggerName() const override { return TEXT("AnimNotify"); }
 
 	virtual void OnHandlerAdded(const FTetherHandlerRecord& Record) override
 	{
@@ -132,12 +113,12 @@ public:
 		TMap<FString, FString> Ctx;
 		Ctx.Add(TEXT("trigger"),        TEXT("'anim_notify'"));
 		Ctx.Add(TEXT("notify_name"),    FString::Printf(TEXT("'%s'"),
-			*TetherReactiveAdapterImpl_Anim::EscapeSingleQuoted(NotifyName.ToString())));
-		Ctx.Add(TEXT("anim_instance"),  TetherReactiveAdapterImpl_Anim::RenderObject(AI));
-		Ctx.Add(TEXT("mesh_component"), TetherReactiveAdapterImpl_Anim::RenderObject(Mesh));
-		Ctx.Add(TEXT("owner_actor"),    TetherReactiveAdapterImpl_Anim::RenderObject(OwnerActor));
-		Ctx.Add(TEXT("montage"),        TetherReactiveAdapterImpl_Anim::RenderObject(Montage));
-		Ctx.Add(TEXT("source_asset"),   TetherReactiveAdapterImpl_Anim::RenderObject(SourceAsset));
+			*TetherReactiveUtil::EscapePythonStringLiteral(NotifyName.ToString())));
+		Ctx.Add(TEXT("anim_instance"),  TetherReactiveUtil::RenderPyObjectLiteral(AI));
+		Ctx.Add(TEXT("mesh_component"), TetherReactiveUtil::RenderPyObjectLiteral(Mesh));
+		Ctx.Add(TEXT("owner_actor"),    TetherReactiveUtil::RenderPyObjectLiteral(OwnerActor));
+		Ctx.Add(TEXT("montage"),        TetherReactiveUtil::RenderPyObjectLiteral(Montage));
+		Ctx.Add(TEXT("source_asset"),   TetherReactiveUtil::RenderPyObjectLiteral(SourceAsset));
 
 		Sub->Dispatch(ETetherTrigger::AnimNotify,
 			TWeakObjectPtr<UObject>(AI), NotifyName, Ctx);

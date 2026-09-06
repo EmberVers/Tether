@@ -1,5 +1,6 @@
 #include "TetherReactiveAdapter.h"
 #include "TetherReactiveSubsystem.h"
+#include "TetherReactiveShared.h"
 #include "Editor.h"
 #include "Engine/World.h"
 #include "HAL/PlatformTime.h"
@@ -20,6 +21,7 @@ class FTetherTimerAdapter : public ITetherReactiveAdapter
 {
 public:
 	virtual ETetherTrigger GetTriggerType() const override { return ETetherTrigger::Timer; }
+	virtual FString GetTriggerName() const override { return TEXT("Timer"); }
 
 	virtual void OnHandlerAdded(const FTetherHandlerRecord& Record) override
 	{
@@ -104,18 +106,9 @@ private:
 		}
 
 		const double NowPlat = FPlatformTime::Seconds();
-		double WorldNow = 0.0;
-		if (GEditor)
-		{
-			for (const FWorldContext& Ctx : GEditor->GetWorldContexts())
-			{
-				if (Ctx.WorldType == EWorldType::PIE && Ctx.World() && Ctx.World()->HasBegunPlay())
-				{
-					WorldNow = Ctx.World()->GetTimeSeconds();
-					break;
-				}
-			}
-		}
+		// First begun-play PIE world (shared selection logic in TetherReactiveShared.h).
+		const UWorld* PIEWorld = TetherReactiveUtil::FindPIEWorld();
+		const double WorldNow = PIEWorld ? PIEWorld->GetTimeSeconds() : 0.0;
 
 		// Snapshot ids first — DispatchOne may add/remove handlers, mutating Entries.
 		struct FPending { FString Id; double Elapsed; int64 FireCount; double Interval; };

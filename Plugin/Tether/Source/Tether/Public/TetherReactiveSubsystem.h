@@ -158,6 +158,13 @@ public:
 
 	ITetherReactiveAdapter* FindAdapter(ETetherTrigger TriggerType) const;
 
+	/**
+	 * Canonical trigger-type name ("GameplayEvent", "Timer", …) via the
+	 * registered adapter's GetTriggerName(); "None" when no adapter matches.
+	 * Used for summaries, persistence, and log messages.
+	 */
+	FString TriggerNameFor(ETetherTrigger TriggerType) const;
+
 	/** Documentation helper — returns the context-key spec of a trigger. */
 	TMap<FString, FString> DescribeTriggerContext(const FString& TriggerTypeName) const;
 

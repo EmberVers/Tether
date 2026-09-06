@@ -1,5 +1,6 @@
 #include "TetherReactiveAdapter.h"
 #include "TetherReactiveSubsystem.h"
+#include "TetherReactiveShared.h"
 #include "Editor.h"
 #include "Editor/EditorEngine.h"
 #include "Engine/Blueprint.h"
@@ -8,17 +9,6 @@ DEFINE_LOG_CATEGORY_STATIC(LogTetherReactiveBp, Log, All);
 
 namespace TetherReactiveAdapterImpl_Bp
 {
-	FString EscapeSingleQuoted(const FString& In)
-	{
-		FString Out; Out.Reserve(In.Len() + 2);
-		for (TCHAR C : In)
-		{
-			if (C == TEXT('\\') || C == TEXT('\'')) Out.AppendChar(TEXT('\\'));
-			Out.AppendChar(C);
-		}
-		return Out;
-	}
-
 	/** Short class name of a BP's ParentClass ("ActorComponent", "PlayerController", …). */
 	FString ParentClassShortName(UBlueprint* BP)
 	{
@@ -46,6 +36,7 @@ class FTetherBpCompiledAdapter : public ITetherReactiveAdapter
 {
 public:
 	virtual ETetherTrigger GetTriggerType() const override { return ETetherTrigger::BpCompiled; }
+	virtual FString GetTriggerName() const override { return TEXT("BpCompiled"); }
 
 	virtual void OnHandlerAdded(const FTetherHandlerRecord& Record) override
 	{
@@ -217,8 +208,10 @@ private:
 
 		TMap<FString, FString> Ctx;
 		Ctx.Add(TEXT("trigger"),        TEXT("'bp_compiled'"));
-		Ctx.Add(TEXT("blueprint_path"), FString::Printf(TEXT("'%s'"), *EscapeSingleQuoted(Path)));
-		Ctx.Add(TEXT("parent_class"),   FString::Printf(TEXT("'%s'"), *EscapeSingleQuoted(Parent)));
+		Ctx.Add(TEXT("blueprint_path"), FString::Printf(TEXT("'%s'"),
+			*TetherReactiveUtil::EscapePythonStringLiteral(Path)));
+		Ctx.Add(TEXT("parent_class"),   FString::Printf(TEXT("'%s'"),
+			*TetherReactiveUtil::EscapePythonStringLiteral(Parent)));
 
 		Sub->Dispatch(ETetherTrigger::BpCompiled,
 			TWeakObjectPtr<UObject>(BP),

@@ -21,6 +21,7 @@ class FTetherPieStateAdapter : public ITetherReactiveAdapter
 {
 public:
 	virtual ETetherTrigger GetTriggerType() const override { return ETetherTrigger::PieEvent; }
+	virtual FString GetTriggerName() const override { return TEXT("PieEvent"); }
 
 	virtual void OnHandlerAdded(const FTetherHandlerRecord& /*Record*/) override
 	{
