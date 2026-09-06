@@ -543,6 +543,12 @@ private:
 				return false; // one-shot
 			}),
 			0.0f);
+		// Prune fired one-shot tickers before appending: FTSTicker::FDelegateHandle
+		// is a TWeakPtr to the ticker element, so it goes invalid once the
+		// one-shot fired (or was removed) — without this sweep PendingTickers
+		// only ever grew over the editor session's lifetime.
+		PendingTickers.RemoveAll(
+			[](const FTSTicker::FDelegateHandle& H) { return !H.IsValid(); });
 		PendingTickers.Add(Handle);
 	}
 

@@ -768,7 +768,9 @@ void UTetherReactiveSubsystem::ExecuteHandlerOnce(
 			UE_LOG(LogTetherReactive, Error,
 				TEXT("handler %s '%s' (Throw policy): %s — handler paused (resume with tether_resume_handler)"),
 				*R.HandlerId, *R.TaskName, *Error);
-			return;
+			// No early return: a failed Throw invocation still burns the
+			// Once/Count budget below (A-P3-9's "failed calls count too"), so
+			// a Once handler that raised is removed, not left paused forever.
 		}
 		else if (R.ErrorPolicy == ETetherErrorPolicy::LogUnregister)
 		{
@@ -778,9 +780,10 @@ void UTetherReactiveSubsystem::ExecuteHandlerOnce(
 	}
 
 	// Lifetime decrement. NOTE: this runs after failed invocations too (any
-	// path that didn't return above) — a Count/Once handler that keeps raising
-	// still burns its budget. ErrorCount/LastError are the stats to consult
-	// when a handler's fire count doesn't match its success count.
+	// path that didn't return above — LogContinue, and Throw which only pauses
+	// the handler) — a Count/Once handler that keeps raising still burns its
+	// budget. ErrorCount/LastError are the stats to consult when a handler's
+	// fire count doesn't match its success count.
 	bool bShouldRemove = false;
 	TetherReactiveImpl::ApplyLifetimeDecrement(R, bShouldRemove);
 	if (bShouldRemove)
@@ -1128,6 +1131,10 @@ namespace TetherReactivePersistenceImpl
 		O->SetStringField(TEXT("error_policy"),   TetherReactiveImpl::ErrorPolicyName(R.ErrorPolicy));
 		O->SetNumberField(TEXT("throttle_ms"),    R.ThrottleMs);
 		O->SetBoolField(TEXT("paused"),           R.bPaused);
+		// Persist the Throw-policy auto-pause marker so a restarted editor can
+		// still tell an error-policy pause apart from a manual Pause() (F3);
+		// absent on pre-schema files and defaults to false on load.
+		O->SetBoolField(TEXT("paused_by_error_policy"), R.Stats.bPausedByErrorPolicy);
 		O->SetStringField(TEXT("created_at"),     R.CreatedAt.ToIso8601());
 		return O;
 	}
@@ -1203,6 +1210,9 @@ namespace TetherReactivePersistenceImpl
 		Out.ThrottleMs    = static_cast<int32>(O->GetNumberField(TEXT("throttle_ms")));
 		// Paused state survives restarts; absent on pre-schema files (false).
 		O->TryGetBoolField(TEXT("paused"), Out.bPaused);
+		// Throw-policy auto-pause marker (F3): absent on pre-schema files
+		// (false) — backward compatible with older persistence files.
+		O->TryGetBoolField(TEXT("paused_by_error_policy"), Out.Stats.bPausedByErrorPolicy);
 		FString Created;
 		if (O->TryGetStringField(TEXT("created_at"), Created) && !Created.IsEmpty())
 		{

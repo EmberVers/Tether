@@ -9,6 +9,7 @@
 #include "GameFramework/Actor.h"
 #include "HAL/FileManager.h"
 #include "Misc/AutomationTest.h"
+#include "Misc/DateTime.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Guid.h"
 #include "Misc/Paths.h"
@@ -92,6 +93,22 @@ namespace TetherReactiveTests
 	 * Persistence-file guard: moves an existing file aside on entry, deletes
 	 * test artifacts and restores the original on exit so round-trip and
 	 * corrupt-file tests never destroy the editor session's persisted state.
+	 *
+	 * The guard also restores the in-memory registry: tests call
+	 * LoadAllHandlers() mid-test, which wipes the live editor session's
+	 * handlers from the registry (it only restores what the on-disk file
+	 * contained at that moment). Without a final LoadAllHandlers() after the
+	 * backup is moved back, the session's own unregister/MarkDirty writes
+	 * would eventually re-save the now-empty registry over the just-restored
+	 * user file via the ~100 ms persistence-debounce ticker.
+	 *
+	 * Destruction order (guard must be declared BEFORE the handler's
+	 * ON_SCOPE_EXIT so LIFO runs the unregister first): the test's
+	 * ON_SCOPE_EXIT unregisters only the handler the test registered, then
+	 * this destructor deletes test artifacts, moves the user's backup back
+	 * over the path, and reloads the registry from it — the memory state and
+	 * disk state end up identical to pre-test, with bPersistenceDirty cleared
+	 * so the debounce ticker has nothing to overwrite.
 	 */
 	class FScopedPersistenceFile
 	{
@@ -99,6 +116,7 @@ namespace TetherReactiveTests
 		FScopedPersistenceFile()
 			: Path(UTetherReactiveSubsystem::GetPersistencePath())
 		{
+			StartedAt = FDateTime::UtcNow();
 			bExisted = FPaths::FileExists(Path);
 			if (bExisted)
 			{
@@ -109,8 +127,11 @@ namespace TetherReactiveTests
 
 		~FScopedPersistenceFile()
 		{
+			UTetherReactiveSubsystem* Sub = UTetherReactiveSubsystem::Get();
 			IFileManager::Get().Delete(*Path, false, true);
-			// Clean up any .corrupt-* artifacts the tests renamed aside.
+			// Clean up only the .corrupt-* artifacts created after the test
+			// started (mtime >= StartedAt) — older files are evidence from
+			// earlier editor sessions and belong to the user.
 			TArray<FString> CorruptFiles;
 			IFileManager::Get().FindFiles(
 				CorruptFiles,
@@ -118,12 +139,24 @@ namespace TetherReactiveTests
 				true, false);
 			for (const FString& File : CorruptFiles)
 			{
-				IFileManager::Get().Delete(
-					*FPaths::Combine(FPaths::GetPath(Path), File), false, true);
+				const FString Full = FPaths::Combine(FPaths::GetPath(Path), File);
+				if (IFileManager::Get().GetTimeStamp(*Full) >= StartedAt)
+				{
+					IFileManager::Get().Delete(*Full, false, true);
+				}
 			}
 			if (bExisted)
 			{
 				IFileManager::Get().Move(*Path, *BackupPath);
+			}
+			// Reload the in-memory registry from the restored file so the
+			// editor session keeps its own handlers. This also clears
+			// bPersistenceDirty (LoadAllHandlers resets it), preventing the
+			// debounce ticker from re-saving the test-wiped registry over the
+			// just-restored user file.
+			if (Sub)
+			{
+				Sub->LoadAllHandlers();
 			}
 		}
 
@@ -132,6 +165,7 @@ namespace TetherReactiveTests
 	private:
 		FString Path;
 		FString BackupPath;
+		FDateTime StartedAt;
 		bool bExisted = false;
 	};
 
@@ -238,8 +272,12 @@ bool FTetherReactiveDeadSubjectUnregisterTest::RunTest(const FString& Parameters
 	const FString PackagePath = FString::Printf(
 		TEXT("/Temp/TetherReactiveDeadSubject_%s"),
 		*FGuid::NewGuid().ToString(EGuidFormats::Digits));
-	UPackage* TransientPackage = CreatePackage(*PackagePath);
-	if (!TestNotNull(TEXT("transient package was created"), TransientPackage))
+	// The package is kept alive through a strong pointer until the test's
+	// final GC: the mid-test MarkAsGarbage()+CollectGarbage below already
+	// reclaims the package unless we hold a strong reference. A bare
+	// UPackage* in the scope exit would then be use-after-free.
+	TStrongObjectPtr<UPackage> TransientPackage(CreatePackage(*PackagePath));
+	if (!TestNotNull(TEXT("transient package was created"), TransientPackage.Get()))
 	{
 		return false;
 	}
@@ -247,10 +285,9 @@ bool FTetherReactiveDeadSubjectUnregisterTest::RunTest(const FString& Parameters
 
 	// Keep the subject alive through a strong pointer until the GC step.
 	TStrongObjectPtr<AActor> Subject(NewObject<AActor>(
-		TransientPackage, TEXT("DeadSubjectActor"), RF_Transient));
+		TransientPackage.Get(), TEXT("DeadSubjectActor"), RF_Transient));
 	if (!TestTrue(TEXT("transient subject actor was created"), Subject.IsValid()))
 	{
-		TransientPackage->MarkAsGarbage();
 		return false;
 	}
 
@@ -260,7 +297,10 @@ bool FTetherReactiveDeadSubjectUnregisterTest::RunTest(const FString& Parameters
 	ON_SCOPE_EXIT
 	{
 		TetherReactiveTests::UnregisterIfKnown(Id);
-		TransientPackage->MarkAsGarbage();
+		// Release both strong refs first so the GC below can actually reclaim
+		// the subject and its transient package.
+		Subject.Reset();
+		TransientPackage.Reset();
 		CollectGarbage(RF_NoFlags, true);
 	};
 
@@ -282,6 +322,8 @@ bool FTetherReactiveDeadSubjectUnregisterTest::RunTest(const FString& Parameters
 	// per-subject handler. Dispatch with an explicitly-null subject; the
 	// script "pass" cannot fail, but the stale record must not run — assert
 	// via stats that its call count stays zero.
+	// Drop the strong subject ref and mark the (still strongly referenced)
+	// package as garbage; the GC pass then destroys only the subject actor.
 	Subject.Reset();
 	TransientPackage->MarkAsGarbage();
 	CollectGarbage(RF_NoFlags, true);

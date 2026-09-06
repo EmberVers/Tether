@@ -111,10 +111,25 @@ public:
 			return;
 		}
 
+		const FName NewIAName(*IA->GetName());
 		for (FBinding& B : Bindings)
 		{
-			if (B.Comp.Get() == Comp && B.Action.Get() == IA && B.Event == Event)
+			// Dedup by (Comp, IAName, Event) rather than by the UInputAction
+			// pointer: the previously bound IA asset may have been GC'd since
+			// (B.Action stale) while a new IA object was loaded for the same
+			// asset path. Pointer-only matching used to create a second
+			// binding whose unregister then decremented the FIRST (stale)
+			// entry, leaving the live one bound forever.
+			if (B.Comp.Get() == Comp && B.IAName == NewIAName && B.Event == Event)
 			{
+				if (B.Action.Get() != IA)
+				{
+					// Same (Comp, IAName, Event) but a different IA object —
+					// the old delegate binding is dead (its IA was GC'd);
+					// rebind against the freshly loaded IA.
+					UnbindOne(B);
+					BindOne(B, IA, Event);
+				}
 				B.HandlerCount += 1;
 				return;
 			}
@@ -122,21 +137,8 @@ public:
 
 		FBinding NB;
 		NB.Comp = Comp;
-		NB.Action = IA;
-		NB.IAName = FName(*IA->GetName());
-		NB.Event = Event;
 		NB.HandlerCount = 1;
-		NB.Listener.Reset(NewObject<UTetherInputActionListener>());
-		NB.Listener->Adapter = this;
-		NB.Listener->BoundComp = Comp;
-		NB.Listener->BoundAction = IA;
-		NB.Listener->TriggerEventValue = static_cast<uint8>(Event);
-
-		FEnhancedInputActionEventBinding& EBind = Comp->BindAction(
-			IA, Event, NB.Listener.Get(),
-			GET_FUNCTION_NAME_CHECKED(UTetherInputActionListener, OnActionFired));
-		NB.BindingHandle = EBind.GetHandle();
-
+		BindOne(NB, IA, Event);
 		Bindings.Add(MoveTemp(NB));
 	}
 
@@ -279,6 +281,31 @@ private:
 		{
 			B.Listener->Adapter = nullptr;
 		}
+	}
+
+	/** (Re)bind a binding's EnhancedInput delegate against a live IA object. */
+	void BindOne(FBinding& B, UInputAction* InIA, ETriggerEvent InEvent)
+	{
+		UEnhancedInputComponent* Comp = B.Comp.Get();
+		if (!Comp || !InIA)
+		{
+			return;
+		}
+		B.Action = InIA;
+		B.IAName = FName(*InIA->GetName());
+		B.Event = InEvent;
+		if (!B.Listener.IsValid())
+		{
+			B.Listener.Reset(NewObject<UTetherInputActionListener>());
+			B.Listener->Adapter = this;
+		}
+		B.Listener->BoundComp = Comp;
+		B.Listener->BoundAction = InIA;
+		B.Listener->TriggerEventValue = static_cast<uint8>(InEvent);
+		FEnhancedInputActionEventBinding& EBind = Comp->BindAction(
+			InIA, InEvent, B.Listener.Get(),
+			GET_FUNCTION_NAME_CHECKED(UTetherInputActionListener, OnActionFired));
+		B.BindingHandle = EBind.GetHandle();
 	}
 
 	TArray<FBinding> Bindings;
