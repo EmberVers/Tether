@@ -17,7 +17,15 @@ Instead:
 
 Run:
     python tools/gen_version_stubs.py             # generate
-    python tools/gen_version_stubs.py --check     # exit 1 if any stubs file missing/stale
+    python tools/gen_version_stubs.py --check     # exit 1 if any stubs file missing/stale,
+                                                  # or if TARGETS drifted from the .cpp gates
+
+The --check gate scan cross-references the second source of truth: for every
+"function"/"functions" TARGETS entry, the U<Library>::<Function> definitions
+that actually live inside `#if !UE_VERSION_OLDER_THAN(5, 7, 0)` blocks in the
+main .cpp are extracted and compared against the hardcoded TARGETS list. A
+5.7-gated function that was never registered in TARGETS would otherwise only
+surface as a linker error on UE 5.4 (no stub body).
 """
 from __future__ import annotations
 
@@ -133,6 +141,84 @@ UFUNCTION_RE = re.compile(
     r"\)\s*;",
     re.DOTALL,
 )
+
+# Gate scan: `#if !UE_VERSION_OLDER_THAN(5, 7, 0)` (whitespace tolerated).
+GATE_OPEN_RE = re.compile(r"^#if\s+!\s*UE_VERSION_OLDER_THAN\s*\(\s*5\s*,\s*7\s*,\s*0\s*\)")
+# Out-of-line member definition at column 0 (UE source style: return type on
+# the same line, no leading whitespace — indented matches are local lambdas or
+# qualified calls like `FDataTableEditorUtils::BroadcastPreChange`, not
+# library member definitions).
+GATED_DEF_RE = re.compile(r"^[\w:*&<>, \t]*?\bUTether(\w+)Library::(\w+)\s*\(")
+
+
+def extract_gated_definitions(text: str) -> set:
+    """Return {"TetherXxxLibrary"}-normalized {(library, function)} pairs for
+    every out-of-line `UTetherXxxLibrary::Func(` member definition inside a
+    top-level `#if !UE_VERSION_OLDER_THAN(5, 7, 0)` ... matching `#endif` block.
+
+    Tracks preprocessor nesting depth so inner `#if/#else` pairs (e.g. the
+    `#else` fallbacks inside TetherPerfLibrary.cpp's big gate) do not end the
+    outer gate early, and only definitions whose closing `#endif` matches the
+    gate's own depth count.
+    """
+    results: set = set()
+    in_gate = False
+    gate_depth = 0
+    depth = 0
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("#if"):
+            depth += 1
+            if not in_gate and GATE_OPEN_RE.match(stripped):
+                in_gate = True
+                gate_depth = depth
+        elif stripped.startswith("#endif"):
+            if in_gate and depth == gate_depth:
+                in_gate = False
+            depth -= 1
+        elif in_gate:
+            m = GATED_DEF_RE.match(line)
+            if m:
+                results.add((f"Tether{m.group(1)}Library", m.group(2)))
+    return results
+
+
+def check_gate_scan() -> bool:
+    """Compare TARGETS "function"/"functions" entries against the actual
+    5.7-gate blocks in the main .cpp files. Returns True when they match.
+
+    "all"-scope targets are skipped: their whole class body is inside one gate
+    block, so the gate boundary IS the class and there is no second list to
+    drift. Only named-function scopes carry a hand-maintained list to verify.
+    """
+    ok = True
+    for target in TARGETS:
+        scope = target["scope"]
+        if scope not in ("function", "functions"):
+            continue
+        name = target["name"]
+        cpp_path = PRIVATE / f"{name}.cpp"
+        if not cpp_path.is_file():
+            print(f"  GATE {name} — main .cpp missing: {cpp_path}")
+            ok = False
+            continue
+        if scope == "function":
+            declared = {(name, target["function"])}
+        else:
+            declared = {(name, f) for f in target["functions"]}
+        actual = extract_gated_definitions(cpp_path.read_text(encoding="utf-8"))
+        cpp_only = actual - declared
+        targets_only = declared - actual
+        if cpp_only or targets_only:
+            ok = False
+            print(f"  GATE MISMATCH {name}:")
+            for _, fn in sorted(cpp_only):
+                print(f"    in .cpp gate but NOT in TARGETS: {fn}")
+            for _, fn in sorted(targets_only):
+                print(f"    in TARGETS but NOT in .cpp gate: {fn}")
+        else:
+            print(f"  GATE ok   {name} — {len(declared)} gated function(s) match TARGETS")
+    return ok
 
 
 def split_params(s: str) -> list[str]:
@@ -273,7 +359,8 @@ def process_target(target: dict, dry_run: bool) -> tuple[bool, int]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Generate _Stubs.cpp files for 5.7-gated libraries.")
-    ap.add_argument("--check", action="store_true", help="dry run; exit 1 if changes needed")
+    ap.add_argument("--check", action="store_true",
+                    help="dry run; exit 1 if changes needed or TARGETS/gate drift detected")
     args = ap.parse_args()
     changed_any = False
     total = 0
@@ -285,6 +372,12 @@ def main() -> int:
     if args.check and changed_any:
         print("(--check: changes would be needed)")
         return 1
+    if args.check:
+        print("gate scan: TARGETS vs .cpp #if !UE_VERSION_OLDER_THAN(5, 7, 0) blocks")
+        if not check_gate_scan():
+            print("(--check: TARGETS drift from .cpp gates — register or remove the "
+                  "functions above so stubs and gates stay in lockstep)")
+            return 1
     return 0
 
 

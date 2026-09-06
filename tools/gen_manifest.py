@@ -11,6 +11,13 @@ Two run modes (auto-detected by whether `import unreal` succeeds):
       captures the JSON output, and writes it to
       .claude/skills/tether/scripts/tether_manifest.json by default.
 
+      python tools/gen_manifest.py --check
+      Offline staleness gate: regex-extracts every UFUNCTION declaration from
+      the Tether*Library.h headers and compares the (snake_cased) name sets
+      against the manifest. No editor needed. Exits 1 on any drift — a C++
+      function added/removed without regenerating the manifest shows up here
+      before agents call a binding that no longer exists.
+
   In-UE reflection:
       tether.py exec-file tools/gen_manifest.py
       Walks every unreal.Tether*Library class plus every
@@ -111,6 +118,127 @@ def _apply_min_engine_stamps(manifest: dict) -> "tuple[dict, int]":
             fn_meta["min_engine"] = MIN_ENGINE_VERSION
             stamped += 1
     return manifest, stamped
+
+
+# ── Offline staleness check (no editor needed) ──────────────────────────────
+
+# UE's Python binding generator turns a trailing digit+capital in the C++
+# name into `<digit>_<lower>` (PlaySound2D → play_sound2_d), while the naive
+# snake_caser produces `<digit><lower>` (play_sound2d). Map the handful of
+# Tether names that hit the rule; anything unmapped falls back to naive.
+_UE_SNAKE_EXCEPTIONS = {
+    "PlaySound2D": "play_sound2_d",
+    "SamplePointsPoissonDisk2D": "sample_points_poisson_disk2_d",
+    "SamplePointsPoissonDisk3D": "sample_points_poisson_disk3_d",
+}
+
+
+def _ue_snake(name: str) -> str:
+    """C++ UFUNCTION name → expected UE Python binding name (snake_case).
+
+    Handles the digit+capital boundary the same way UE's generator does
+    (via the exceptions table above).
+    """
+    import re as _re
+    if name in _UE_SNAKE_EXCEPTIONS:
+        return _UE_SNAKE_EXCEPTIONS[name]
+    s = _re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", name)
+    s = _re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", s)
+    return s.lower()
+
+
+def _header_ufunction_sets(public_dir: "str | None" = None) -> "dict[str, set[str]]":
+    """Scan every Tether*Library.h and return {library: {snake_case fn}}.
+
+    Reuses gen_version_stubs.parse_header so the UFUNCTION regex stays a
+    single source of truth (nested-paren tolerating, class-anchored).
+    Class name comes back as `UTetherFooLibrary`; manifest keys are
+    `TetherFooLibrary`, so the leading `U` is stripped here.
+    """
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from pathlib import Path as _Path
+    from gen_version_stubs import parse_header  # noqa: PLC0415
+
+    if public_dir is None:
+        public_dir = (
+            _Path(__file__).resolve().parent.parent
+            / "Plugin" / "Tether" / "Source" / "Tether" / "Public"
+        )
+    out: dict = {}
+    for h_path in sorted(_Path(public_dir).glob("Tether*Library.h")):
+        class_name, funcs = parse_header(h_path)
+        if not class_name or not class_name.startswith("U"):
+            continue
+        lib = class_name[1:]
+        out[lib] = {_ue_snake(f["name"]) for f in funcs}
+    return out
+
+
+def _check_drift(
+    manifest_path: "str | None" = None,
+    header_sets: "dict[str, set[str]] | None" = None,
+) -> int:
+    """Offline manifest staleness gate. Returns process exit code.
+
+    `header_sets` and `manifest_path` are injectable for tests; production
+    resolves them from the repo layout.
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    repo = os.path.dirname(here)
+    if manifest_path is None:
+        manifest_path = os.path.join(
+            repo, ".claude", "skills", "tether", "scripts", "tether_manifest.json"
+        )
+    if not os.path.isfile(manifest_path):
+        print(f"ERROR: manifest not found at {manifest_path}", file=sys.stderr)
+        return 1
+
+    with open(manifest_path, encoding="utf-8") as f:
+        manifest = json.load(f)
+    mf_libs = {
+        lib: set(entry.get("functions", {}))
+        for lib, entry in manifest.get("libraries", {}).items()
+    }
+    hdr_libs = _header_ufunction_sets() if header_sets is None else header_sets
+
+    hdr_only_libs = sorted(set(hdr_libs) - set(mf_libs))
+    mf_only_libs = sorted(set(mf_libs) - set(hdr_libs))
+
+    fn_diffs = []
+    for lib in sorted(set(hdr_libs) & set(mf_libs)):
+        h, m = hdr_libs[lib], mf_libs[lib]
+        if h != m:
+            fn_diffs.append((lib, sorted(h - m), sorted(m - h)))
+
+    total_missing = sum(len(a) for _, a, _ in fn_diffs)
+    total_extra = sum(len(b) for _, _, b in fn_diffs)
+
+    print(f"manifest: {len(mf_libs)} libraries, "
+          f"{sum(len(f) for f in mf_libs.values())} functions")
+    print(f"headers:  {len(hdr_libs)} libraries, "
+          f"{sum(len(f) for f in hdr_libs.values())} UFUNCTION declarations")
+
+    if hdr_only_libs:
+        print(f"libraries in headers but NOT in manifest: {hdr_only_libs}")
+    if mf_only_libs:
+        print(f"libraries in manifest but NOT in headers: {mf_only_libs}")
+    for lib, missing, extra in fn_diffs:
+        if missing:
+            print(f"{lib}: UFUNCTION(s) missing from manifest (C++ added, "
+                  f"manifest not regenerated): {missing}")
+        if extra:
+            print(f"{lib}: manifest-only function(s) (C++ removed/renamed, "
+                  f"manifest not regenerated): {extra}")
+
+    if hdr_only_libs or mf_only_libs or total_missing or total_extra:
+        print(
+            "\n--check: manifest is STALE — run `python tools/gen_manifest.py` "
+            "against a running editor to regenerate.",
+            file=sys.stderr,
+        )
+        return 1
+    print("--check: manifest UFUNCTION set matches the headers")
+    return 0
 
 
 # ── In-UE half: reflect the live Tether* surface ─────────────────────
@@ -407,12 +535,18 @@ def _cli() -> int:
     parser = argparse.ArgumentParser(
         description="Generate tether_manifest.json by introspecting a running UE editor."
     )
+    parser.add_argument("--check", action="store_true",
+                        help="offline staleness gate: compare header UFUNCTION sets "
+                             "against the existing manifest (no editor needed)")
     parser.add_argument("--out", help="Output path (default: <repo>/.claude/skills/tether/scripts/tether_manifest.json)")
     parser.add_argument("--wrapper-out", help="Wrapper module output path (default: <repo>/Plugin/Tether/Content/Python/tether.py)")
     parser.add_argument("--no-wrapper", action="store_true", help="Skip generating the kwargs-only wrapper module")
     parser.add_argument("--tether", help="Path to tether.py (default: auto-detect relative to this script)")
     parser.add_argument("--timeout", type=int, default=60, help="Tether call timeout in seconds (default: 60)")
     args = parser.parse_args()
+
+    if args.check:
+        return _check_drift()
 
     here = os.path.dirname(os.path.abspath(__file__))
     repo = os.path.dirname(here)  # tools/ → repo root
@@ -730,7 +864,11 @@ def _short_name(lib_name: str) -> str:
 
 # ── Entry point ────────────────────────────────────────────────────────────
 
-if _IN_UE:
-    print(json.dumps(_build_manifest_in_ue(), ensure_ascii=False))
-else:
-    sys.exit(_cli())
+# Runs only when executed as a script (CLI driver, or via tether.py exec-file
+# inside UE, which also runs the file as __main__). Importing the module as a
+# library (tests, other tools) stays side-effect free.
+if __name__ == "__main__":
+    if _IN_UE:
+        print(json.dumps(_build_manifest_in_ue(), ensure_ascii=False))
+    else:
+        sys.exit(_cli())

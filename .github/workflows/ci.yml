@@ -1,0 +1,57 @@
+# Offline fast gate for the Tether bridge plugin — pure Python stdlib, no UE.
+#
+# What this catches (all offline):
+#   1. Contract test regressions in tools/ (unittest discover).
+#   2. Stub drift: any _Stubs.cpp missing/stale vs the headers, or the
+#      hand-maintained TARGETS table drifting from the actual
+#      `#if !UE_VERSION_OLDER_THAN(5, 7, 0)` blocks in the main .cpp files
+#      (a missing registration = 5.4 link error).
+#   3. UFUNCTION category drift in the C++ headers (add_categories.py).
+#   4. README bilingual drift: README.md and README.zh-CN.md must keep the
+#      same heading level sequence (section added/removed/moved in one file
+#      must be mirrored in the other).
+#   5. Manifest staleness: UFUNCTION sets in the headers vs
+#      tether_manifest.json (see the note on that step).
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  offline-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Contract tests (tools/)
+        run: python -m unittest discover -s tools -p "test_*.py"
+
+      - name: Stub files + TARGETS gate scan
+        run: python tools/gen_version_stubs.py --check
+
+      - name: Header category drift
+        run: python tools/add_categories.py --check
+
+      - name: README bilingual heading sync
+        run: python tools/check_readme_sync.py
+
+      # Manifest staleness gate. KNOWN DRIFT at the time this workflow was
+      # added (manifest not regenerated after C++ changes):
+      #   TetherBlueprintLibrary: set_node_comment, set_variable_metadata
+      #   TetherGameplayLibrary: play_sound2_d vs manifest's play_sound2d
+      #   TetherProceduralLibrary: sample_points_poisson_disk2_d/3_d vs
+      #     manifest's sample_points_poisson_disk2d/3d
+      # Fixing it requires regenerating the manifest against a live editor
+      # (python tools/gen_manifest.py) — not possible in offline CI. The
+      # step reports the drift in the log without failing the pipeline;
+      # flip continue-on-error to false once the manifest is regenerated.
+      - name: Manifest staleness (advisory until manifest regen)
+        run: python tools/gen_manifest.py --check
+        continue-on-error: true
