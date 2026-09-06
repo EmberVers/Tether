@@ -2,7 +2,7 @@
 
 `unreal.TetherReactiveLibrary` — register Python scripts that fire when UE events happen (GameplayEvent, AnimNotify, MovementMode change, attribute threshold, actor destroyed, …). The tether request/response exec model stays unchanged; reactive scripts live in C++ and run on the GameThread the moment the underlying delegate fires.
 
-Design doc: `docs/plans/reactive-handlers.md`. For the plan's current status (which adapters are runtime-verified vs build-only), read the status table there.
+Originally designed in a reactive-handlers planning doc (not kept in the repo). Per-adapter runtime status is recorded in the "Untested paths" notes inline in this file.
 
 ---
 
@@ -232,7 +232,7 @@ hid = unreal.TetherReactiveLibrary.register_runtime_movement_mode_changed(
 
 Fire when an AnimNotify named `notify_name` plays on target's skeletal mesh. Binds `UAnimInstance::OnPlayMontageNotifyBegin`.
 
-> **Note:** runtime-untested at the time of writing — the project's current DefaultMap lacks an AnimBP + montage fixture. Build-verified; API shape is stable. See `docs/plans/reactive-handlers.md` "Untested paths".
+> **Note:** runtime-untested at the time of writing — the project's current DefaultMap lacks an AnimBP + montage fixture. Build-verified; API shape is stable. See the "Untested paths" notes in this file.
 
 ```python
 hid = unreal.TetherReactiveLibrary.register_runtime_anim_notify(

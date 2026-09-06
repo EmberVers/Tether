@@ -454,6 +454,13 @@ def _check_call(node: ast.Call, unreal_aliases: Set[str],
         msg = f"preflight L{node.lineno}: {lib}.{fn}(...) - no such function."
         if sugg:
             msg += f" Did you mean: {', '.join(sugg)}?"
+        msg += (
+            f"\n  If '{fn}' was just added or renamed, regenerate the manifest first: "
+            f"python tools/gen_manifest.py (requires the editor online). "
+            f"Reflection changes do not auto-update tether_manifest.json, "
+            f"and a stale manifest makes the preflight reject the call before "
+            f"it reaches the editor."
+        )
         return msg
 
     fn_meta = funcs[fn]

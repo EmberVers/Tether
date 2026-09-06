@@ -22,6 +22,12 @@ Mirrors `Plugin/Tether/` plus `.claude/skills/tether/` into the target project's
 python .claude/skills/tether/scripts/tether.py ping
 ```
 
+**Run offline contract tests:**
+```bash
+python -m unittest discover -s tools -p "test_*.py"
+```
+62 second-level offline contract tests covering preflight, discovery, and protocol behavior. Run after any change to preflight/discovery/protocol scripts (`tether.py`, `tether_preflight.py`, tools generators). No editor required.
+
 **Execute Python in UE:**
 ```bash
 python .claude/skills/tether/scripts/tether.py exec "print('hello')"
@@ -94,6 +100,19 @@ Priority CLI > env > `EditorPerProjectUserSettings.ini [Tether]` > default.
 - **TetherGameplayAbilityLibrary** — GameplayAbilitySystem introspection (scaffold): GameplayAbility Blueprint CDO metadata — name, parent, instancing/net policy, asset tags, cost/cooldown GE class. Depends on the `GameplayAbilities` engine plugin (auto-enabled via `.uplugin`)
 - **TetherStateTreeLibrary** — UE 5.7+ StateTree asset lifecycle and full authoring: schema-filtered state/node/transition CRUD, generic node/state/transition properties, property bindings, root/state parameters, compiler diagnostics, transient debugger breakpoints, and live `UStateTreeComponent` inspection/control. Older engines expose safe stubs
 - **TetherPerfLibrary** — Structured perf snapshots: frame timing (FPS, GT/RT/GPU/RHI ms) from viewport `FStatUnitData`, draw calls / primitives from RHI globals, process memory via `FPlatformMemory::GetStats`, UObject class histogram via `TObjectIterator`. Replaces parsing `stat unit` text output
+- **TetherReactiveLibrary** — Register Python scripts that fire on UE events (GameplayEvent, AnimNotify, MovementMode change, GameplayTag attribute threshold, actor lifecycle, InputAction) via C++ delegate bindings on the GameThread; for polling-free event-driven agent logic. See `tether-reactive.md`
+- **TetherChooserLibrary** — UE 5.7+ `UChooserTable` read+write (Motion Matching dispatch layer): column/row inspection and authoring, nested-chooser paths, auto Compile+PostEditChange. `private:` fields (`ResultsStructs`, `DisabledRows`) are the reason this library exists. See `tether-chooser-api.md`
+- **TetherCurveLibrary** — Float/Vector/LinearColor curve and CurveTable read/write with batch-safe semantics: N-point batch evaluation in one round-trip, atomic tangent writes under a single `FScopedTransaction`, CurveTable row edits, open-Curve-Editor refresh. See `tether-curve-api.md`
+- **TetherStructLibrary** — `UUserDefinedStruct` create/edit via `FStructureEditorUtils` (no native Python entry point exists): field add/remove/rename/retype/reorder, transactional, recompiles dependents. See `tether-struct-api.md`
+- **TetherGameplayLibrary** — Agent sensors + navigation for PIE automation: perception (agent observations with class/LOS filters), navmesh path planning (editor-world fallback when PIE is off), runtime timers, sticky inputs for pawn driving. See `tether-gameplay-api.md`
+- **TetherGameplayTagLibrary** — GameplayTag-specific helpers built on the AssetRegistry SearchableName index + `UGameplayTagsManager`: tag reference queries with child-tag expansion, registered-tag listing, source-of-definition lookup, add/rename/remove with redirect maintenance. See `tether-gameplaytag-api.md`
+- **TetherGeometryLibrary** — UE 5.7+ Geometry Script wrap giving a `UDynamicMesh`-based authoring pipeline: handle pool (GC-safe process-global ints), static-mesh/component ingest, boolean/smooth/decimate/normals ops, primitives, and save-to-static-mesh. Editor-world only. See `tether-geometry-api.md`
+- **TetherNavigationLibrary** — UE 5.7+ navigation system introspection and export: `ARecastNavMesh` OBJ export. Depends on `NavigationSystem`/`Navmesh` modules. See `tether-navigation-api.md`
+- **TetherPCGLibrary** — UE 5.7+ PCG read-only graph access + override edit + Generate/Cleanup trigger for existing PCG content; explicitly no graph editing. Editor-world only. See `tether-pcg-api.md`
+- **TetherPoseSearchLibrary** — UE 5.7+ Motion Matching asset families: PoseSearchSchema info/channels, PoseSearchDatabase animation entries (CRUD) + index lifecycle, normalization sets (read). `private:` fields are the reason this library exists. See `tether-pose-search-api.md`
+- **TetherPropertyLibrary** — Privileged generic UPROPERTY read/write operating directly on `FProperty` pointers, below `get_editor_property`/`set_editor_property`: `private:`/bare `UPROPERTY()` access, `EditDefaultsOnly` sub-field writes, EPropertyFlags + metadata reads, export-text struct/array writes, native-CDO opt-in. See `tether-property-api.md`
+- **TetherProceduralLibrary** — Procedural placement primitives for level dressing: deterministic sampling (grid/poisson/surface/landscape/spline/volume, 100k-point cap), filtering, ISM instancing, rebuild nav. See `tether-procedural-api.md`
+- **TetherSmartObjectLibrary** — UE 5.7+ Smart Object Definition authoring (slots, behaviors, annotations, World Conditions, bindings), world components and persistent collections, runtime spatial query/claim/occupy/release, tags/events, entrance validation. See `tether-smartobject-api.md`
 
 ### Python Side
 - `Content/Python/tether_helpers.py` — Helper functions auto-loaded in UE Python env (list_assets, get_selected_actors, find_actors_by_class, set_actor_transform, get_world_info)
@@ -127,6 +146,14 @@ After either loop finishes:
 - `python .claude/skills/tether/scripts/tether.py ping` — confirm the tether is up.
 - `tether.py exec "import unreal; print(unreal.SystemLibrary.get_project_directory())"` — confirm Python is live.
 - Exercise the feature via `tether.py exec` or `exec-file` (call the new `unreal.<Library>.<method>()`). Check return values and `LogTether` output.
+
+**Reflection changes require a manifest regen.** After any new/renamed `UFUNCTION`, `USTRUCT`, or enum (i.e. the same edits that force the full-rebuild loop above), run:
+
+```bash
+python tools/gen_manifest.py
+```
+
+This needs the editor online — it drives the running editor's reflection and updates `.claude/skills/tether/scripts/tether_manifest.json`, the kwargs-only `Content/Python/tether.py` wrapper, and the project-mirrored wrapper copy. Skipping it leaves the client-side preflight linting against a stale manifest, so calls to the new function are rejected with `no such function` (exit 3) before ever reaching the editor — which looks like a compile failure but isn't. Reflection changes do not auto-update the manifest.
 
 ### Clean shutdown (if needed)
 
