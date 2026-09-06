@@ -36,7 +36,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PUBLIC = REPO_ROOT / "Plugin" / "Tether" / "Source" / "Tether" / "Public"
-PRIVATE = REPO_ROOT / "Plugin" / "Tether" / "Source" / "Tether" / "Private"
+LIBRARIES = REPO_ROOT / "Plugin" / "Tether" / "Source" / "Tether" / "Private" / "Libraries"
 
 # Each entry: header stem, scope ("all" wraps every UFUNCTION in the class;
 # "function" wraps just one named UFUNCTION; "functions" wraps every name in
@@ -197,7 +197,7 @@ def check_gate_scan() -> bool:
         if scope not in ("function", "functions"):
             continue
         name = target["name"]
-        cpp_path = PRIVATE / f"{name}.cpp"
+        cpp_path = LIBRARIES / f"{name}.cpp"
         if not cpp_path.is_file():
             print(f"  GATE {name} — main .cpp missing: {cpp_path}")
             ok = False
@@ -324,7 +324,7 @@ def process_target(target: dict, dry_run: bool) -> tuple[bool, int]:
     name = target["name"]
     scope = target["scope"]
     h_path = PUBLIC / f"{name}.h"
-    out_path = PRIVATE / f"{name}_Stubs.cpp"
+    out_path = LIBRARIES / f"{name}_Stubs.cpp"
     class_name, funcs = parse_header(h_path)
     if not class_name:
         print(f"  SKIP {name} — no UBlueprintFunctionLibrary class found in {h_path}")

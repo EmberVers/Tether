@@ -15,7 +15,7 @@
 #include "Misc/Paths.h"
 #include "Misc/ScopeExit.h"
 #include "TetherMaterialLibrary.h"
-#include "TetherMaterialParameterHelpers.h"
+#include "Libraries/TetherMaterialParameterHelpers.h"
 #include "UObject/Package.h"
 
 using namespace TetherMaterialParameterHelpers;

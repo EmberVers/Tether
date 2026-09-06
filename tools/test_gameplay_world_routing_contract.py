@@ -15,6 +15,7 @@ SOURCE_PATH = (
     / "Source"
     / "Tether"
     / "Private"
+    / "Libraries"
     / "TetherGameplayLibrary.cpp"
 )
 SOURCE = SOURCE_PATH.read_text(encoding="utf-8")

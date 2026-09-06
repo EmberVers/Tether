@@ -2,7 +2,7 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
-#include "TetherCancellableWork.h"
+#include "Core/TetherCancellableWork.h"
 #include "TetherServer.h"
 #include "SocketSubsystem.h"
 #include "Misc/ScopeExit.h"

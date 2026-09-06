@@ -88,7 +88,7 @@ class EndpointIdentityTests(unittest.TestCase):
 
     def test_cpp_and_python_protocol_constants_match(self):
         header = (Path(__file__).resolve().parents[1] / "Plugin" / "Tether" /
-                  "Source" / "Tether" / "Private" /
+                  "Source" / "Tether" / "Private" / "Core" /
                   "TetherProtocol.h").read_text(encoding="utf-8")
         self.assertIn(f"constexpr int32 Version = {tether.PROTOCOL_VERSION};", header)
         for capability in tether.EXACT_CAPABILITIES:
@@ -96,7 +96,7 @@ class EndpointIdentityTests(unittest.TestCase):
 
     def test_production_handler_uses_exact_dispatcher_as_secondary_source_check(self):
         source = (Path(__file__).resolve().parents[1] / "Plugin" / "Tether" /
-                  "Source" / "Tether" / "Private" /
+                  "Source" / "Tether" / "Private" / "Core" /
                   "TetherServer.cpp").read_text(encoding="utf-8")
         handler = source[source.index("void FTetherServer::HandleClient"):
                          source.index("// Python execution pipeline")]

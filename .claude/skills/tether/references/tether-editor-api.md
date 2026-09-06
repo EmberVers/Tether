@@ -36,7 +36,7 @@ diagnosis; run `modal-status` to inspect full current semantics before any actio
 
 Why this distinction matters: a hung `exec` doesn't tell you whether to wait it out or take recovery action. `gamethread_ping`'s latency does. It also confirms whether new `exec` calls have any chance of landing — they won't until the GT is responsive *and* the FTSTicker drains, which only happens at `FEngineLoop::Tick` boundaries (not nested TaskGraph pumps).
 
-Implementation: `Plugin/Tether/Source/Tether/Private/TetherServer.cpp` — `HandleClient` command dispatch.
+Implementation: `Plugin/Tether/Source/Tether/Private/Core/TetherServer.cpp` — `HandleClient` command dispatch.
 
 ## Editor State
 

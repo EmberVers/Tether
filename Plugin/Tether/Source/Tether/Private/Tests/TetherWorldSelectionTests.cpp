@@ -2,7 +2,7 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
-#include "TetherWorldSelection.h"
+#include "Shared/TetherWorldSelection.h"
 
 #include "Engine/Engine.h"
 #include "Engine/LocalPlayer.h"

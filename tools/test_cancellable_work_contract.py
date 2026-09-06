@@ -14,6 +14,7 @@ SERVER_CPP = (
     / "Source"
     / "Tether"
     / "Private"
+    / "Core"
     / "TetherServer.cpp"
 )
 WORK_HEADER = SERVER_CPP.with_name("TetherCancellableWork.h")

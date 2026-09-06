@@ -2,9 +2,9 @@
 
 #include "Misc/AutomationTest.h"
 #include "Dom/JsonObject.h"
-#include "TetherEndpointIdentity.h"
-#include "TetherExactRequestDispatcher.h"
-#include "TetherProtocol.h"
+#include "Core/TetherEndpointIdentity.h"
+#include "Core/TetherExactRequestDispatcher.h"
+#include "Core/TetherProtocol.h"
 #include <limits>
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(

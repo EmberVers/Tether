@@ -8,10 +8,10 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PRIVATE = ROOT / "Plugin/Tether/Source/Tether/Private"
-SERVER = PRIVATE / "TetherServer.cpp"
-PROTOCOL = PRIVATE / "TetherProtocol.h"
-DISPATCHER = PRIVATE / "TetherExactRequestDispatcher.cpp"
+CORE = ROOT / "Plugin/Tether/Source/Tether/Private/Core"
+SERVER = CORE / "TetherServer.cpp"
+PROTOCOL = CORE / "TetherProtocol.h"
+DISPATCHER = CORE / "TetherExactRequestDispatcher.cpp"
 DISCOVERY_CLIENT = (
     ROOT / ".claude/skills/tether/scripts/tether_discovery.py"
 )

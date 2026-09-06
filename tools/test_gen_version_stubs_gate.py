@@ -136,7 +136,7 @@ class ExtractGatedDefinitionsTests(unittest.TestCase):
 
 
 class CheckGateScanTests(unittest.TestCase):
-    """check_gate_scan() against monkeypatched TARGETS/PRIVATE state."""
+    """check_gate_scan() against monkeypatched TARGETS/LIBRARIES state."""
 
     def _run_with(self, tmp_cpp_text: str, targets: list) -> tuple[bool, str]:
         import contextlib
@@ -147,16 +147,16 @@ class CheckGateScanTests(unittest.TestCase):
         with TemporaryDirectory() as td:
             cpp = Path(td) / "TetherFooLibrary.cpp"
             cpp.write_text(tmp_cpp_text, encoding="utf-8")
-            real_targets, real_private = gvs.TARGETS, gvs.PRIVATE
+            real_targets, real_libraries = gvs.TARGETS, gvs.LIBRARIES
             gvs.TARGETS = targets
-            gvs.PRIVATE = Path(td)
+            gvs.LIBRARIES = Path(td)
             try:
                 buf = io.StringIO()
                 with contextlib.redirect_stdout(buf):
                     ok = gvs.check_gate_scan()
                 return ok, buf.getvalue()
             finally:
-                gvs.TARGETS, gvs.PRIVATE = real_targets, real_private
+                gvs.TARGETS, gvs.LIBRARIES = real_targets, real_libraries
 
     def test_matching_targets_pass(self):
         targets = [{"name": "TetherFooLibrary", "scope": "functions",
