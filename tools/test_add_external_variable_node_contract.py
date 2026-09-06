@@ -10,7 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 HEADER = ROOT / "Plugin/Tether/Source/Tether/Public/TetherBlueprintLibrary.h"
-SOURCE = ROOT / "Plugin/Tether/Source/Tether/Private/Libraries/TetherBlueprintLibrary.cpp"
+SOURCE = ROOT / "Plugin/Tether/Source/Tether/Private/Libraries/TetherBlueprintLibrary_Graph.cpp"
 REFERENCE = ROOT / ".claude/skills/tether/references/tether-blueprint-api.md"
 MANIFEST = ROOT / ".claude/skills/tether/scripts/tether_manifest.json"
 WRAPPER = ROOT / "Plugin/Tether/Content/Python/tether.py"

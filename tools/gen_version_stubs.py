@@ -197,16 +197,24 @@ def check_gate_scan() -> bool:
         if scope not in ("function", "functions"):
             continue
         name = target["name"]
-        cpp_path = LIBRARIES / f"{name}.cpp"
-        if not cpp_path.is_file():
-            print(f"  GATE {name} — main .cpp missing: {cpp_path}")
-            ok = False
-            continue
         if scope == "function":
             declared = {(name, target["function"])}
         else:
             declared = {(name, f) for f in target["functions"]}
-        actual = extract_gated_definitions(cpp_path.read_text(encoding="utf-8"))
+        # TetherBlueprintLibrary is split across several TUs
+        # (CRUD/Graph/Layout/Debug); the gate block can live in any of them,
+        # so scan every main-name variant in LIBRARIES.
+        cpp_paths = sorted(
+            LIBRARIES.glob(f"{name}*.cpp")
+        ) if name == "TetherBlueprintLibrary" else [LIBRARIES / f"{name}.cpp"]
+        cpp_paths = [p for p in cpp_paths if p.is_file() and "_Stubs" not in p.stem]
+        if not cpp_paths:
+            print(f"  GATE {name} — main .cpp missing in {LIBRARIES}")
+            ok = False
+            continue
+        actual: set = set()
+        for cpp_path in cpp_paths:
+            actual |= extract_gated_definitions(cpp_path.read_text(encoding="utf-8"))
         cpp_only = actual - declared
         targets_only = declared - actual
         if cpp_only or targets_only:
