@@ -239,6 +239,16 @@ public:
 		}
 		Bindings.Reset();
 		GlobalTagCounts.Reset();
+		// One-shot deferred-rebind tickers capture raw `this`; drop them before
+		// the adapter is destroyed so a late tick can't touch freed memory.
+		for (FTSTicker::FDelegateHandle& H : PendingTickers)
+		{
+			if (H.IsValid())
+			{
+				FTSTicker::GetCoreTicker().RemoveTicker(H);
+			}
+		}
+		PendingTickers.Reset();
 		for (auto& Pair : WorldSpawnHandles)
 		{
 			if (UWorld* W = Pair.Key.Get())
@@ -296,6 +306,9 @@ private:
 	FDelegateHandle PostPieStartedHandle;
 	/** EndPIE subscription to clean up bindings whose ASC just got torn down. */
 	FDelegateHandle PieEndHandle;
+
+	/** One-shot deferred-rebind tickers from OnPieActorSpawned; removed on Shutdown. */
+	TArray<FTSTicker::FDelegateHandle> PendingTickers;
 
 	/** Bind the ASC delegate if not already; bump the requested refcount. */
 	void EnsureBinding(UAbilitySystemComponent* ASC, const FGameplayTag& Tag, bool bForGlobal)
@@ -513,8 +526,11 @@ private:
 			return;
 		}
 		// PlayerState ASCs aren't on the actor at OnActorSpawned. Re-check next tick.
+		// The ticker is one-shot (returns false) but is registered in
+		// PendingTickers anyway: if the subsystem deinits before it fires, the
+		// lambda would otherwise tick with a dangling `this`.
 		TWeakObjectPtr<AActor> WeakActor(SpawnedActor);
-		FTSTicker::GetCoreTicker().AddTicker(
+		FTSTicker::FDelegateHandle Handle = FTSTicker::GetCoreTicker().AddTicker(
 			FTickerDelegate::CreateLambda([this, WeakActor](float) -> bool
 			{
 				if (AActor* A = WeakActor.Get())
@@ -527,6 +543,7 @@ private:
 				return false; // one-shot
 			}),
 			0.0f);
+		PendingTickers.Add(Handle);
 	}
 
 	void BindAllGlobalTagsToASC(UAbilitySystemComponent* ASC)

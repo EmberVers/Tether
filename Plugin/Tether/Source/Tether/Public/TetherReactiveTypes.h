@@ -75,6 +75,15 @@ struct FTetherHandlerStats
 	UPROPERTY(BlueprintReadOnly, Category = "Tether|Reactive")
 	FString LastError;
 
+	/**
+	 * True when the handler was auto-paused by the Throw error policy after a
+	 * failing invocation (script raised an exception). Distinct from a user
+	 * Pause() call — this is Python-observable signal that the handler errored
+	 * out and stopped firing until Resume().
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "Tether|Reactive")
+	bool bPausedByErrorPolicy = false;
+
 	/** UE world time (Editor world) of most recent fire. */
 	UPROPERTY(BlueprintReadOnly, Category = "Tether|Reactive")
 	double LastFireTimeSeconds = 0.0;

@@ -10,6 +10,7 @@
 #include "Misc/Guid.h"
 #include "Misc/Paths.h"
 #include "Misc/FileHelper.h"
+#include "Misc/Base64.h"
 #include "HAL/PlatformTime.h"
 #include "HAL/PlatformFileManager.h"
 #include "Dom/JsonObject.h"
@@ -429,6 +430,9 @@ bool UTetherReactiveSubsystem::ResumeHandler(const FString& HandlerId)
 	if (TSharedRef<FTetherHandlerRecord>* R = Handlers.Find(HandlerId))
 	{
 		(*R)->bPaused = false;
+		// A user Resume() also clears the Throw-policy auto-pause marker —
+		// explicit intent to run the handler again.
+		(*R)->Stats.bPausedByErrorPolicy = false;
 		return true;
 	}
 	return false;
@@ -610,12 +614,24 @@ void UTetherReactiveSubsystem::DispatchLocked(
 		{
 			continue;
 		}
-		// Subject match: either both null (global), or pointer-equal.
-		UObject* RecSubject = R.Subject.Get();
-		UObject* EvtSubject = Subject.Get();
-		if (RecSubject != EvtSubject)
+		// Subject match: a global event (explicitly-null Subject) matches only
+		// global handlers; a live event subject matches the same object.
+		// Stale per-subject records (dead weak ptr) must NOT match a global
+		// event — pointer equality used to equate both "dead" with "null".
+		const bool bEventIsGlobal = Subject.IsExplicitlyNull() && !Subject.IsValid();
+		const bool bRecordIsGlobal = R.Subject.IsExplicitlyNull() && !R.Subject.IsValid();
+		if (bEventIsGlobal != bRecordIsGlobal)
 		{
 			continue;
+		}
+		if (!bEventIsGlobal)
+		{
+			UObject* RecSubject = R.Subject.Get();
+			UObject* EvtSubject = Subject.Get();
+			if (!RecSubject || !EvtSubject || RecSubject != EvtSubject)
+			{
+				continue; // expired record subject: skip, never fire
+			}
 		}
 		if (!R.Selector.IsNone() && R.Selector != Selector)
 		{
@@ -742,9 +758,17 @@ void UTetherReactiveSubsystem::ExecuteHandlerOnce(
 
 		if (R.ErrorPolicy == ETetherErrorPolicy::Throw)
 		{
+			// Throw escalates beyond LogContinue: log at Error severity AND
+			// pause the handler so it stops firing (a raising handler is
+			// presumably broken; triage before more calls). Python can observe
+			// the pause via stats.bPausedByErrorPolicy / summary.bPaused and
+			// undo it with Resume().
+			R.bPaused = true;
+			R.Stats.bPausedByErrorPolicy = true;
 			UE_LOG(LogTetherReactive, Error,
-				TEXT("handler %s '%s' (Throw policy): %s"),
+				TEXT("handler %s '%s' (Throw policy): %s — handler paused (resume with tether_resume_handler)"),
 				*R.HandlerId, *R.TaskName, *Error);
+			return;
 		}
 		else if (R.ErrorPolicy == ETetherErrorPolicy::LogUnregister)
 		{
@@ -753,7 +777,10 @@ void UTetherReactiveSubsystem::ExecuteHandlerOnce(
 		}
 	}
 
-	// Lifetime decrement after successful (or non-unregister-on-error) call.
+	// Lifetime decrement. NOTE: this runs after failed invocations too (any
+	// path that didn't return above) — a Count/Once handler that keeps raising
+	// still burns its budget. ErrorCount/LastError are the stats to consult
+	// when a handler's fire count doesn't match its success count.
 	bool bShouldRemove = false;
 	TetherReactiveImpl::ApplyLifetimeDecrement(R, bShouldRemove);
 	if (bShouldRemove)
@@ -813,13 +840,14 @@ FString UTetherReactiveSubsystem::BuildWrappedScript(
 	// then runs the user script inside a try/except that prints the traceback on
 	// failure and re-raises to make ExecPythonCommandEx return false.
 	//
-	// Note: we do NOT base64-encode the user script here (unlike the tether
-	// server's sync exec path) because reactive handlers don't need captured
-	// stdout — their output just goes to the editor log via the user's own
-	// unreal.log() calls. The simpler concat keeps per-fire overhead tiny.
+	// Note: unlike the tether server's sync exec path we don't capture the
+	// handler's stdout — its output just goes to the editor log via the user's
+	// own unreal.log() calls. The base64 transport below is only about
+	// preserving the script's exact bytes, not capturing output.
 	FString Script;
 	Script.Append(TEXT("import sys as _sys\n"));
 	Script.Append(TEXT("import unreal\n"));
+	Script.Append(TEXT("import base64 as _b64\n"));
 	Script.Append(TEXT("_mod = _sys.modules.setdefault('_tether_reactive_state', type(_sys)('_tether_reactive_state'))\n"));
 	Script.Append(TEXT("if not hasattr(_mod, 'shared'):  _mod.shared = {}\n"));
 	Script.Append(TEXT("if not hasattr(_mod, 'private'): _mod.private = {}\n"));
@@ -838,23 +866,21 @@ FString UTetherReactiveSubsystem::BuildWrappedScript(
 	Script.Append(TEXT("    unreal.log('[reactive:' + handler_id + '|' + handler_task_name + '] ' + str(_msg))\n"));
 	Script.Append(TEXT("def defer_to_next_tick(_src):\n"));
 	Script.Append(TEXT("    unreal.TetherReactiveLibrary.defer_to_next_tick(_src)\n"));
-	// User script inside a try/except.
+	// User script is base64-encoded instead of being indented into the
+	// try-block. The old line-by-line "    " prefix permanently altered the
+	// content of multi-line strings (triple-quoted literals, backslash
+	// continuations) — a data-correctness bug for handlers that build code /
+	// JSON / templates. Base64 sidesteps quoting and indentation entirely;
+	// the same pattern the tether server's sync exec path already uses.
+	const FTCHARToUTF8 ScriptUtf8(*Record.Script);
+	const FString ScriptB64 = FBase64::Encode(
+		reinterpret_cast<const uint8*>(ScriptUtf8.Get()),
+		ScriptUtf8.Length());
+	Script.Append(FString::Printf(
+		TEXT("_src = _b64.b64decode('%s').decode('utf-8')\n"), *ScriptB64));
+	// User script inside a try/except that reports and re-raises.
 	Script.Append(TEXT("try:\n"));
-	// Indent the user script by 4 spaces. Cheap split + rejoin.
-	{
-		TArray<FString> Lines;
-		Record.Script.ParseIntoArrayLines(Lines, /*InCullEmpty=*/false);
-		for (const FString& Line : Lines)
-		{
-			Script.Append(TEXT("    "));
-			Script.Append(Line);
-			Script.Append(TEXT("\n"));
-		}
-		if (Lines.Num() == 0)
-		{
-			Script.Append(TEXT("    pass\n"));
-		}
-	}
+	Script.Append(TEXT("    exec(compile(_src, '<tether-handler>', 'exec'))\n"));
 	Script.Append(TEXT("except Exception:\n"));
 	Script.Append(TEXT("    import traceback as _tb\n"));
 	Script.Append(TEXT("    _err = _tb.format_exc()\n"));
@@ -1101,6 +1127,7 @@ namespace TetherReactivePersistenceImpl
 		O->SetNumberField(TEXT("remaining_calls"), R.RemainingCalls);
 		O->SetStringField(TEXT("error_policy"),   TetherReactiveImpl::ErrorPolicyName(R.ErrorPolicy));
 		O->SetNumberField(TEXT("throttle_ms"),    R.ThrottleMs);
+		O->SetBoolField(TEXT("paused"),           R.bPaused);
 		O->SetStringField(TEXT("created_at"),     R.CreatedAt.ToIso8601());
 		return O;
 	}
@@ -1174,6 +1201,8 @@ namespace TetherReactivePersistenceImpl
 		Out.RemainingCalls = static_cast<int32>(O->GetNumberField(TEXT("remaining_calls")));
 		Out.ErrorPolicy   = ParseErrorPolicy(O->GetStringField(TEXT("error_policy")));
 		Out.ThrottleMs    = static_cast<int32>(O->GetNumberField(TEXT("throttle_ms")));
+		// Paused state survives restarts; absent on pre-schema files (false).
+		O->TryGetBoolField(TEXT("paused"), Out.bPaused);
 		FString Created;
 		if (O->TryGetStringField(TEXT("created_at"), Created) && !Created.IsEmpty())
 		{
@@ -1240,8 +1269,10 @@ int32 UTetherReactiveSubsystem::RestoreFromJson(const FString& JsonText)
 	TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonText);
 	if (!FJsonSerializer::Deserialize(Reader, Root) || !Root.IsValid())
 	{
+		// The file-level rename (when a path is known) is handled by the
+		// caller, LoadAllHandlers, before this parse is retried.
 		UE_LOG(LogTetherReactive, Warning,
-			TEXT("RestoreFromJson: invalid JSON — renaming file and starting fresh"));
+			TEXT("RestoreFromJson: invalid JSON — skipping (caller renames the file when a path is known)"));
 		return 0;
 	}
 
@@ -1311,6 +1342,34 @@ int32 UTetherReactiveSubsystem::LoadAllHandlers()
 			TEXT("LoadAllHandlers: read failed (%s)"), *Path);
 		return 0;
 	}
+
+	// Corrupt file: parse will fail in RestoreFromJson. Save the evidence —
+	// rename the file aside with a UTC-timestamp suffix instead of leaving it
+	// in place (a bad file in place re-fails the parse on every startup and
+	// blocks legitimate saves).
+	{
+		TSharedPtr<FJsonObject> ProbeRoot;
+		TSharedRef<TJsonReader<>> ProbeReader = TJsonReaderFactory<>::Create(Text);
+		if (!FJsonSerializer::Deserialize(ProbeReader, ProbeRoot) || !ProbeRoot.IsValid())
+		{
+			const FString CorruptPath = Path + TEXT(".corrupt-") +
+				FDateTime::UtcNow().ToString(TEXT("%Y%m%d%H%M%S"));
+			if (PF.MoveFile(*CorruptPath, *Path))
+			{
+				UE_LOG(LogTetherReactive, Warning,
+					TEXT("LoadAllHandlers: invalid JSON in '%s' — renamed to '%s' and starting fresh"),
+					*Path, *CorruptPath);
+			}
+			else
+			{
+				UE_LOG(LogTetherReactive, Warning,
+					TEXT("LoadAllHandlers: invalid JSON in '%s' — rename to '%s' failed (check permissions); starting fresh"),
+					*Path, *CorruptPath);
+			}
+			return 0;
+		}
+	}
+
 	// Clear existing registry first so load is idempotent.
 	if (Handlers.Num() > 0)
 	{

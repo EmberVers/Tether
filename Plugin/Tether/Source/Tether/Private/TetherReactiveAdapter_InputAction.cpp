@@ -37,6 +37,22 @@ namespace TetherReactiveAdapterImpl_Input
 		default:                       return TEXT("Unknown");
 		}
 	}
+
+	/**
+	 * Case-sensitive parse of a trigger-event name (Selector's tail segment).
+	 * The library entry point canonicalizes casing before it ever reaches the
+	 * Selector, so an unmatched name here means corrupted data — the caller
+	 * warns and bails rather than silently falling back to another event.
+	 */
+	bool ParseTriggerEvent(const FString& EventName, ETriggerEvent& Out)
+	{
+		if      (EventName == TEXT("Triggered")) { Out = ETriggerEvent::Triggered; return true; }
+		else if (EventName == TEXT("Started"))   { Out = ETriggerEvent::Started;   return true; }
+		else if (EventName == TEXT("Ongoing"))   { Out = ETriggerEvent::Ongoing;   return true; }
+		else if (EventName == TEXT("Canceled"))  { Out = ETriggerEvent::Canceled;  return true; }
+		else if (EventName == TEXT("Completed")) { Out = ETriggerEvent::Completed; return true; }
+		return false;
+	}
 }
 
 /**
@@ -74,6 +90,17 @@ public:
 				TEXT("OnHandlerAdded %s: bad Selector '%s'"), *Record.HandlerId, *Record.Selector.ToString());
 			return;
 		}
+		ETriggerEvent Event;
+		if (!TetherReactiveAdapterImpl_Input::ParseTriggerEvent(EventName, Event))
+		{
+			// Casing is canonicalized at registration, so this is corrupt data.
+			// No silent fallback — a defaulted event would silently fire the
+			// handler at the wrong time.
+			UE_LOG(LogTetherReactiveInput, Warning,
+				TEXT("OnHandlerAdded %s: unknown trigger event '%s' in Selector '%s'"),
+				*Record.HandlerId, *EventName, *Record.Selector.ToString());
+			return;
+		}
 		UInputAction* IA = Cast<UInputAction>(StaticLoadObject(
 			UInputAction::StaticClass(), nullptr, *Record.AdapterPayload));
 		if (!IA)
@@ -83,13 +110,6 @@ public:
 				*Record.HandlerId, *Record.AdapterPayload);
 			return;
 		}
-
-		ETriggerEvent Event = ETriggerEvent::Triggered;
-		if      (EventName == TEXT("Triggered")) Event = ETriggerEvent::Triggered;
-		else if (EventName == TEXT("Started"))   Event = ETriggerEvent::Started;
-		else if (EventName == TEXT("Ongoing"))   Event = ETriggerEvent::Ongoing;
-		else if (EventName == TEXT("Canceled"))  Event = ETriggerEvent::Canceled;
-		else if (EventName == TEXT("Completed")) Event = ETriggerEvent::Completed;
 
 		for (FBinding& B : Bindings)
 		{
@@ -103,6 +123,7 @@ public:
 		FBinding NB;
 		NB.Comp = Comp;
 		NB.Action = IA;
+		NB.IAName = FName(*IA->GetName());
 		NB.Event = Event;
 		NB.HandlerCount = 1;
 		NB.Listener.Reset(NewObject<UTetherInputActionListener>());
@@ -123,19 +144,32 @@ public:
 	{
 		UEnhancedInputComponent* Comp = Cast<UEnhancedInputComponent>(Record.Subject.Get());
 		FString IAName, EventName;
-		Record.Selector.ToString().Split(TEXT(":"), &IAName, &EventName);
-		ETriggerEvent Event = ETriggerEvent::Triggered;
-		if      (EventName == TEXT("Triggered")) Event = ETriggerEvent::Triggered;
-		else if (EventName == TEXT("Started"))   Event = ETriggerEvent::Started;
-		else if (EventName == TEXT("Ongoing"))   Event = ETriggerEvent::Ongoing;
-		else if (EventName == TEXT("Canceled"))  Event = ETriggerEvent::Canceled;
-		else if (EventName == TEXT("Completed")) Event = ETriggerEvent::Completed;
+		if (!Record.Selector.ToString().Split(TEXT(":"), &IAName, &EventName))
+		{
+			UE_LOG(LogTetherReactiveInput, Warning,
+				TEXT("OnHandlerRemoved %s: bad Selector '%s'"), *Record.HandlerId, *Record.Selector.ToString());
+			return;
+		}
+		ETriggerEvent Event;
+		if (!TetherReactiveAdapterImpl_Input::ParseTriggerEvent(EventName, Event))
+		{
+			// If the Selector never parsed at registration either, no binding
+			// exists for it — nothing to remove.
+			UE_LOG(LogTetherReactiveInput, Warning,
+				TEXT("OnHandlerRemoved %s: unknown trigger event '%s' in Selector '%s'"),
+				*Record.HandlerId, *EventName, *Record.Selector.ToString());
+			return;
+		}
+		const FName IANameF(*IAName);
 
 		for (int32 i = 0; i < Bindings.Num(); ++i)
 		{
 			FBinding& B = Bindings[i];
-			if (B.Comp.Get() == Comp && B.Event == Event &&
-				B.Action.IsValid() && B.Action->GetName() == IAName)
+			// Match by the cached IAName (recorded at bind time) rather than
+			// dereferencing B.Action — the UInputAction asset may have been
+			// GC'd since binding, which used to strand the binding until
+			// Shutdown because B.Action->GetName() was unreachable.
+			if (B.Comp.Get() == Comp && B.Event == Event && B.IAName == IANameF)
 			{
 				B.HandlerCount -= 1;
 				if (B.HandlerCount <= 0)
@@ -227,6 +261,8 @@ private:
 	{
 		TWeakObjectPtr<UEnhancedInputComponent> Comp;
 		TWeakObjectPtr<UInputAction> Action;
+		/** Cached short name of the bound IA — outlives the asset for GC-safe unbind matching. */
+		FName IAName;
 		ETriggerEvent Event = ETriggerEvent::Triggered;
 		uint32 BindingHandle = 0;
 		TStrongObjectPtr<UTetherInputActionListener> Listener;

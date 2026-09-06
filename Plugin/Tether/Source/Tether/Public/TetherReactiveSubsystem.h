@@ -26,7 +26,10 @@ struct FTetherHandlerRecord
 	FName Selector;
 
 	/** Adapter-specific free-form payload set by the library entry point.
-	 *  InputAction stores the UInputAction path here; other adapters ignore it. */
+	 *  InputAction stores the UInputAction path here; GameplayEvent and
+	 *  BpCompiled store the registration intent ("global" / "per_subject")
+	 *  so the adapter can route add/remove correctly after the Subject dies;
+	 *  other adapters ignore it. */
 	FString AdapterPayload;
 
 	/**

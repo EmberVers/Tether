@@ -102,6 +102,13 @@ private:
 
 	void DispatchEvent(const TCHAR* EventName, const FAssetData& Data, const FString& OldObjectPath)
 	{
+		// Hot path (OnAssetUpdated fires per resave): skip all context-string
+		// construction when no handler could possibly match.
+		if (HandlerCount == 0)
+		{
+			return;
+		}
+
 		UTetherReactiveSubsystem* Sub = UTetherReactiveSubsystem::Get();
 		if (!Sub) return;
 

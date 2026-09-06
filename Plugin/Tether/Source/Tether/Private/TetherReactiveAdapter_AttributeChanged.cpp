@@ -1,3 +1,4 @@
+#include "TetherReactiveShared.h"
 #include "TetherReactiveAdapter.h"
 #include "TetherReactiveSubsystem.h"
 #include "AbilitySystemComponent.h"
@@ -19,32 +20,9 @@ namespace TetherReactiveAdapterImpl_Attr
 		}
 		return Out;
 	}
-
-	/** Resolve FGameplayAttribute from "AttrSet.Field" or bare "Field" against an ASC's spawned sets. */
-	FGameplayAttribute ResolveAttribute(UAbilitySystemComponent* ASC, const FString& Needle)
-	{
-		FString SetName, BareName;
-		if (!Needle.Split(TEXT("."), &SetName, &BareName))
-		{
-			BareName = Needle;
-		}
-		for (const UAttributeSet* AS : ASC->GetSpawnedAttributes())
-		{
-			if (!AS) continue;
-			if (!SetName.IsEmpty() && AS->GetClass()->GetName() != SetName) continue;
-			for (TFieldIterator<FStructProperty> It(AS->GetClass()); It; ++It)
-			{
-				FStructProperty* P = *It;
-				if (!P || P->Struct != FGameplayAttributeData::StaticStruct()) continue;
-				if (P->GetName() == BareName)
-				{
-					return FGameplayAttribute(P);
-				}
-			}
-		}
-		return FGameplayAttribute();
-	}
 }
+
+// Shared attribute resolver lives in TetherReactiveShared.h (see include above).
 
 /**
  * Binds to UAbilitySystemComponent::GetGameplayAttributeValueChangeDelegate(Attr).
@@ -69,6 +47,8 @@ public:
 
 		const FString AttrString = Record.Selector.ToString();
 		const FGameplayAttribute Attr = TetherReactiveAdapterImpl_Attr::ResolveAttribute(ASC, AttrString);
+		// The library entry point pre-checks this, but restore paths can reach
+		// the adapter with a stale ASC state — guard the delegate bind too.
 		if (!Attr.IsValid())
 		{
 			UE_LOG(LogTetherReactiveAttr, Warning,

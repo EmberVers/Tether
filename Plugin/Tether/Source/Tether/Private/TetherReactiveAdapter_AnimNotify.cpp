@@ -77,6 +77,14 @@ public:
 	virtual void OnHandlerRemoved(const FTetherHandlerRecord& Record) override
 	{
 		UAnimInstance* AI = Cast<UAnimInstance>(Record.Subject.Get());
+		if (!AI)
+		{
+			// Dead subject (GC'd since registration): the binding's own weak
+			// pointer is stale too, so there is nothing left to unbind. Treat
+			// as "binding not found" instead of matching null==null below,
+			// which would decrement the wrong binding.
+			return;
+		}
 		for (int32 i = 0; i < Bindings.Num(); ++i)
 		{
 			FBinding& B = Bindings[i];

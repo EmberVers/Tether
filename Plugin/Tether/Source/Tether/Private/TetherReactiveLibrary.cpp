@@ -1,5 +1,6 @@
 #include "TetherReactiveLibrary.h"
 #include "TetherReactiveSubsystem.h"
+#include "TetherReactiveShared.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemInterface.h"
 #include "Animation/AnimInstance.h"
@@ -152,6 +153,45 @@ namespace TetherReactiveLibImpl
 		if (S.Equals(TEXT("Throw"), ESearchCase::IgnoreCase))         { Out = ETetherErrorPolicy::Throw;         return true; }
 		return false;
 	}
+
+	/** Populate common fields on the record. Returns false if parse failed. */
+	bool FillCommonRecordFields(
+		FTetherHandlerRecord& Record,
+		const FString& TaskName,
+		const FString& Description,
+		const FString& Script,
+		const FString& ScriptPath,
+		const TArray<FString>& Tags,
+		const FString& Lifetime,
+		const FString& ErrorPolicy,
+		int32 ThrottleMs,
+		const TCHAR* CallerTag)
+	{
+		Record.Scope = TEXT("runtime");
+		Record.TaskName = TaskName;
+		Record.Description = Description;
+		Record.Tags = Tags;
+		Record.ScriptPath = ScriptPath;
+		Record.Script = Script;
+		Record.ThrottleMs = FMath::Max(0, ThrottleMs);
+
+		int32 ParsedCount = -1;
+		if (!ParseLifetime(Lifetime, Record.Lifetime, ParsedCount))
+		{
+			UE_LOG(LogTetherReactiveLib, Warning,
+				TEXT("%s: bad Lifetime '%s'"), CallerTag, *Lifetime);
+			return false;
+		}
+		Record.RemainingCalls = ParsedCount;
+
+		if (!ParseErrorPolicy(ErrorPolicy, Record.ErrorPolicy))
+		{
+			UE_LOG(LogTetherReactiveLib, Warning,
+				TEXT("%s: bad ErrorPolicy '%s'"), CallerTag, *ErrorPolicy);
+			return false;
+		}
+		return true;
+	}
 }
 
 FString UTetherReactiveLibrary::RegisterRuntimeGameplayEvent(
@@ -210,38 +250,17 @@ FString UTetherReactiveLibrary::RegisterRuntimeGameplayEvent(
 		return FString();
 	}
 
-	ETetherHandlerLifetime ParsedLifetime = ETetherHandlerLifetime::Permanent;
-	int32 ParsedCount = -1;
-	if (!TetherReactiveLibImpl::ParseLifetime(Lifetime, ParsedLifetime, ParsedCount))
-	{
-		UE_LOG(LogTetherReactiveLib, Warning,
-			TEXT("RegisterRuntimeGameplayEvent: bad Lifetime '%s'"), *Lifetime);
-		return FString();
-	}
-
-	ETetherErrorPolicy ParsedPolicy = ETetherErrorPolicy::LogContinue;
-	if (!TetherReactiveLibImpl::ParseErrorPolicy(ErrorPolicy, ParsedPolicy))
-	{
-		UE_LOG(LogTetherReactiveLib, Warning,
-			TEXT("RegisterRuntimeGameplayEvent: bad ErrorPolicy '%s'"), *ErrorPolicy);
-		return FString();
-	}
-
 	FTetherHandlerRecord Record;
-	Record.Scope = TEXT("runtime");
-	Record.TaskName = TaskName;
-	Record.Description = Description;
-	Record.Tags = Tags;
-	Record.ScriptPath = ScriptPath;
-	Record.Script = Script;
+	if (!TetherReactiveLibImpl::FillCommonRecordFields(Record, TaskName, Description,
+		Script, ScriptPath, Tags, Lifetime, ErrorPolicy, ThrottleMs,
+		TEXT("RegisterRuntimeGameplayEvent")))
+	{
+		return FString();
+	}
 	Record.TriggerType = ETetherTrigger::GameplayEvent;
 	Record.Subject = bGlobal ? TWeakObjectPtr<UObject>() : TWeakObjectPtr<UObject>(ASC);
 	Record.Selector = Tag.GetTagName();
 	Record.AdapterPayload = bGlobal ? TEXT("global") : FString();
-	Record.Lifetime = ParsedLifetime;
-	Record.RemainingCalls = ParsedCount;
-	Record.ErrorPolicy = ParsedPolicy;
-	Record.ThrottleMs = FMath::Max(0, ThrottleMs);
 
 	Record.RegistrationContext.Add(TEXT("target_actor_name"), TargetActorName);
 	Record.RegistrationContext.Add(TEXT("event_tag"),         EventTag);
@@ -253,45 +272,6 @@ FString UTetherReactiveLibrary::RegisterRuntimeGameplayEvent(
 
 namespace TetherReactiveLibImpl
 {
-	/** Populate common fields on the record. Returns false if parse failed. */
-	bool FillCommonRecordFields(
-		FTetherHandlerRecord& Record,
-		const FString& TaskName,
-		const FString& Description,
-		const FString& Script,
-		const FString& ScriptPath,
-		const TArray<FString>& Tags,
-		const FString& Lifetime,
-		const FString& ErrorPolicy,
-		int32 ThrottleMs,
-		const TCHAR* CallerTag)
-	{
-		Record.Scope = TEXT("runtime");
-		Record.TaskName = TaskName;
-		Record.Description = Description;
-		Record.Tags = Tags;
-		Record.ScriptPath = ScriptPath;
-		Record.Script = Script;
-		Record.ThrottleMs = FMath::Max(0, ThrottleMs);
-
-		int32 ParsedCount = -1;
-		if (!ParseLifetime(Lifetime, Record.Lifetime, ParsedCount))
-		{
-			UE_LOG(LogTetherReactiveLib, Warning,
-				TEXT("%s: bad Lifetime '%s'"), CallerTag, *Lifetime);
-			return false;
-		}
-		Record.RemainingCalls = ParsedCount;
-
-		if (!ParseErrorPolicy(ErrorPolicy, Record.ErrorPolicy))
-		{
-			UE_LOG(LogTetherReactiveLib, Warning,
-				TEXT("%s: bad ErrorPolicy '%s'"), CallerTag, *ErrorPolicy);
-			return false;
-		}
-		return true;
-	}
-
 	/** Find a UEnhancedInputComponent on the actor or its (player) controller. */
 	UEnhancedInputComponent* ResolveInputComponent(AActor* Actor)
 	{
@@ -344,6 +324,18 @@ FString UTetherReactiveLibrary::RegisterRuntimeAttributeChanged(
 	{
 		UE_LOG(LogTetherReactiveLib, Warning,
 			TEXT("RegisterRuntimeAttributeChanged: AttributeName is empty"));
+		return FString();
+	}
+	// Pre-check the attribute actually exists on the ASC's spawned sets.
+	// Without this, a typo'd attribute name would register + persist a handler
+	// whose adapter-side binding silently fails (it can only log), so the
+	// handler never fires. Refuse registration instead: empty HandlerId,
+	// nothing stored, nothing persisted.
+	if (!TetherReactiveAdapterImpl_Attr::ResolveAttribute(ASC, AttributeName).IsValid())
+	{
+		UE_LOG(LogTetherReactiveLib, Warning,
+			TEXT("RegisterRuntimeAttributeChanged: attribute '%s' not found on ASC's spawned sets (actor '%s')"),
+			*AttributeName, *Actor->GetPathName());
 		return FString();
 	}
 
@@ -537,12 +529,23 @@ FString UTetherReactiveLibrary::RegisterRuntimeInputAction(
 		return FString();
 	}
 
-	// Validate TriggerEvent early.
+	// Validate TriggerEvent early, remembering the canonical casing. The
+	// Selector and RegistrationContext must store the canonical form — the
+	// adapter parses the event name case-sensitively and Dispatch matches
+	// the Selector exactly, so persisting the caller's raw casing ("started")
+	// would create a handler that never fires.
 	static const TCHAR* Known[] = { TEXT("Triggered"), TEXT("Started"), TEXT("Ongoing"),
 		TEXT("Canceled"), TEXT("Completed") };
-	bool bOk = false;
-	for (const TCHAR* K : Known) { if (TriggerEvent.Equals(K, ESearchCase::IgnoreCase)) { bOk = true; break; } }
-	if (!bOk)
+	const TCHAR* CanonicalEvent = nullptr;
+	for (const TCHAR* K : Known)
+	{
+		if (TriggerEvent.Equals(K, ESearchCase::IgnoreCase))
+		{
+			CanonicalEvent = K;
+			break;
+		}
+	}
+	if (!CanonicalEvent)
 	{
 		UE_LOG(LogTetherReactiveLib, Warning,
 			TEXT("RegisterRuntimeInputAction: bad TriggerEvent '%s'"), *TriggerEvent);
@@ -558,11 +561,11 @@ FString UTetherReactiveLibrary::RegisterRuntimeInputAction(
 	}
 	Record.TriggerType = ETetherTrigger::InputAction;
 	Record.Subject = TWeakObjectPtr<UObject>(Comp);
-	Record.Selector = FName(*FString::Printf(TEXT("%s:%s"), *IA->GetName(), *TriggerEvent));
+	Record.Selector = FName(*FString::Printf(TEXT("%s:%s"), *IA->GetName(), CanonicalEvent));
 	Record.AdapterPayload = InputActionPath;
 	Record.RegistrationContext.Add(TEXT("target_actor_name"),  TargetActorName);
 	Record.RegistrationContext.Add(TEXT("input_action_path"),  InputActionPath);
-	Record.RegistrationContext.Add(TEXT("trigger_event"),      TriggerEvent);
+	Record.RegistrationContext.Add(TEXT("trigger_event"),      FString(CanonicalEvent));
 	return Sub->RegisterHandler(MoveTemp(Record));
 }
 
@@ -747,6 +750,10 @@ FString UTetherReactiveLibrary::RegisterEditorBpCompiled(
 	Record.TriggerType = ETetherTrigger::BpCompiled;
 	Record.Subject = Subject;
 	Record.Selector = NAME_None;
+	// Record the registration intent ("global" vs per-subject) so the adapter
+	// can route OnHandlerRemoved correctly even after the subject BP is GC'd —
+	// matching the GameplayEvent adapter's existing convention.
+	Record.AdapterPayload = BlueprintPathFilter.IsEmpty() ? TEXT("global") : TEXT("per_subject");
 	Record.RegistrationContext.Add(TEXT("blueprint_path_filter"), BlueprintPathFilter);
 	return Sub->RegisterHandler(MoveTemp(Record));
 }
@@ -946,6 +953,21 @@ bool UTetherReactiveLibrary::ResolveForRestore(FTetherHandlerRecord& Record)
 		const FString IAPath   = GetOrEmpty(TEXT("input_action_path"));
 		const FString Trigger  = GetOrEmpty(TEXT("trigger_event"));
 		if (Target.IsEmpty() || IAPath.IsEmpty() || Trigger.IsEmpty()) return false;
+		// Re-canonicalize the trigger event name: pre-fix registrations (and
+		// hand-edited JSON) may have stored the caller's raw casing, which
+		// never matches the adapter's case-sensitive parse or Dispatch's
+		// exact Selector comparison.
+		const TCHAR* Canonical = *Trigger;
+		static const TCHAR* kEvents[] = { TEXT("Triggered"), TEXT("Started"), TEXT("Ongoing"),
+			TEXT("Canceled"), TEXT("Completed") };
+		for (const TCHAR* K : kEvents)
+		{
+			if (Trigger.Equals(K, ESearchCase::IgnoreCase))
+			{
+				Canonical = K;
+				break;
+			}
+		}
 		AActor* Actor = FindActorByName(Target);
 		if (!Actor) return false;
 		UEnhancedInputComponent* Comp = ResolveInputComponent(Actor);
@@ -954,7 +976,7 @@ bool UTetherReactiveLibrary::ResolveForRestore(FTetherHandlerRecord& Record)
 			UInputAction::StaticClass(), nullptr, *IAPath));
 		if (!IA) return false;
 		Record.Subject = TWeakObjectPtr<UObject>(Comp);
-		Record.Selector = FName(*FString::Printf(TEXT("%s:%s"), *IA->GetName(), *Trigger));
+		Record.Selector = FName(*FString::Printf(TEXT("%s:%s"), *IA->GetName(), Canonical));
 		Record.AdapterPayload = IAPath;
 		return true;
 	}
@@ -991,12 +1013,14 @@ bool UTetherReactiveLibrary::ResolveForRestore(FTetherHandlerRecord& Record)
 			// Global mode — leave Subject explicit-null.
 			Record.Subject = TWeakObjectPtr<UObject>();
 			Record.Selector = NAME_None;
+			Record.AdapterPayload = TEXT("global");
 			return true;
 		}
 		UBlueprint* BP = LoadObject<UBlueprint>(nullptr, *Path);
 		if (!BP) return false;
 		Record.Subject = TWeakObjectPtr<UObject>(BP);
 		Record.Selector = NAME_None;
+		Record.AdapterPayload = TEXT("per_subject");
 		return true;
 	}
 	default:

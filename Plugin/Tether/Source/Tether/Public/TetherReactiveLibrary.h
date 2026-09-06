@@ -25,6 +25,15 @@ struct FTetherHandlerRecord;
  * and returned on register. Agents must store the id to later unregister
  * or pause. Registering again with the same id is not supported — call
  * unregister(id) first.
+ *
+ * Empty-string return convention across this API: every register_*
+ * returns "" exactly when registration was REFUSED (missing metadata,
+ * unresolvable subject, unknown tag/attribute/event-name, bad lifetime
+ * policy, subsystem unavailable). Nothing is stored or persisted in that
+ * case. Conversely, GetHandler/GetHandlerStats return a default-constructed
+ * struct (all-zero stats, empty strings) when the id is unknown — check
+ * the handler id via list_all_handlers if you need to distinguish
+ * "registered but never fired" from "not registered".
  */
 UCLASS()
 class TETHER_API UTetherReactiveLibrary : public UBlueprintFunctionLibrary

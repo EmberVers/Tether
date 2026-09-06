@@ -69,6 +69,29 @@ public:
 
 	virtual void OnHandlerRemoved(const FTetherHandlerRecord& Record) override
 	{
+		// Route by the registration-time intent (AdapterPayload) when present,
+		// so an expired per-subject weak pointer doesn't fall into the global
+		// branch and decrement the wrong refcount. Payload is missing only on
+		// records persisted before the field existed — those fall back to the
+		// Subject-liveness heuristic below.
+		if (Record.AdapterPayload == TEXT("per_subject"))
+		{
+			UBlueprint* BP = Cast<UBlueprint>(Record.Subject.Get());
+			if (BP)
+			{
+				RemovePerSubjectBinding(BP);
+			}
+			// Expired subject: the binding's own weak pointer is stale too, so
+			// there is nothing left to unbind — treat as "binding not found".
+			return;
+		}
+		if (Record.AdapterPayload == TEXT("global"))
+		{
+			RemoveGlobalBinding();
+			return;
+		}
+
+		// Legacy fallback (pre-payload persisted records).
 		UBlueprint* BP = Cast<UBlueprint>(Record.Subject.Get());
 		if (BP)
 		{
