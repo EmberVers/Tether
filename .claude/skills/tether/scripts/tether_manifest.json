@@ -2650,7 +2650,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "add_blueprint_component": {
           "doc": "X.add_blueprint_component(blueprint_path, component_class_path, component_name, parent_component_name) -> bool",
@@ -6894,7 +6895,8 @@
               "type": ""
             }
           ],
-          "returns": "int32"
+          "returns": "int32",
+          "min_engine": "5.7"
         },
         "add_chooser_column_by_struct_path": {
           "doc": "X.add_chooser_column_by_struct_path(chooser_table_path, column_struct_path, binding_property_chain, context_index) -> int32",
@@ -6924,7 +6926,8 @@
               "type": ""
             }
           ],
-          "returns": "int32"
+          "returns": "int32",
+          "min_engine": "5.7"
         },
         "add_chooser_column_enum": {
           "doc": "X.add_chooser_column_enum(chooser_table_path, binding_property_chain, enum_path, context_index) -> int32",
@@ -6954,7 +6957,8 @@
               "type": ""
             }
           ],
-          "returns": "int32"
+          "returns": "int32",
+          "min_engine": "5.7"
         },
         "add_chooser_column_float_range": {
           "doc": "X.add_chooser_column_float_range(chooser_table_path, binding_property_chain, context_index) -> int32",
@@ -6978,7 +6982,8 @@
               "type": ""
             }
           ],
-          "returns": "int32"
+          "returns": "int32",
+          "min_engine": "5.7"
         },
         "add_chooser_column_gameplay_tag": {
           "doc": "X.add_chooser_column_gameplay_tag(chooser_table_path, binding_property_chain, context_index) -> int32",
@@ -7002,7 +7007,8 @@
               "type": ""
             }
           ],
-          "returns": "int32"
+          "returns": "int32",
+          "min_engine": "5.7"
         },
         "add_chooser_column_object": {
           "doc": "X.add_chooser_column_object(chooser_table_path, binding_property_chain, context_index) -> int32",
@@ -7026,7 +7032,8 @@
               "type": ""
             }
           ],
-          "returns": "int32"
+          "returns": "int32",
+          "min_engine": "5.7"
         },
         "add_chooser_column_output_float": {
           "doc": "X.add_chooser_column_output_float(chooser_table_path, binding_property_chain, context_index) -> int32",
@@ -7050,7 +7057,8 @@
               "type": ""
             }
           ],
-          "returns": "int32"
+          "returns": "int32",
+          "min_engine": "5.7"
         },
         "add_chooser_column_output_object": {
           "doc": "X.add_chooser_column_output_object(chooser_table_path, binding_property_chain, context_index) -> int32",
@@ -7074,7 +7082,8 @@
               "type": ""
             }
           ],
-          "returns": "int32"
+          "returns": "int32",
+          "min_engine": "5.7"
         },
         "add_chooser_column_randomize": {
           "doc": "X.add_chooser_column_randomize(chooser_table_path, binding_property_chain, context_index) -> int32",
@@ -7098,7 +7107,8 @@
               "type": ""
             }
           ],
-          "returns": "int32"
+          "returns": "int32",
+          "min_engine": "5.7"
         },
         "add_chooser_row": {
           "doc": "X.add_chooser_row(chooser_table_path) -> int32",
@@ -7110,7 +7120,8 @@
               "type": ""
             }
           ],
-          "returns": "int32"
+          "returns": "int32",
+          "min_engine": "5.7"
         },
         "clear_chooser_fallback": {
           "doc": "X.clear_chooser_fallback(chooser_table_path) -> bool",
@@ -7122,7 +7133,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "clear_chooser_row_result": {
           "doc": "X.clear_chooser_row_result(chooser_table_path, row_index) -> bool",
@@ -7140,7 +7152,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "compile_chooser": {
           "doc": "X.compile_chooser(chooser_table_path) -> bool",
@@ -7152,7 +7165,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "evaluate_chooser_multi_with_context_object": {
           "doc": "X.evaluate_chooser_multi_with_context_object(chooser_table_path, context_object_path) -> Array[TetherCHTRowResult]",
@@ -7170,7 +7184,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherCHTRowResult]"
+          "returns": "Array[TetherCHTRowResult]",
+          "min_engine": "5.7"
         },
         "evaluate_chooser_with_context_object": {
           "doc": "X.evaluate_chooser_with_context_object(chooser_table_path, context_object_path) -> TetherCHTEvaluation",
@@ -7188,7 +7203,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherCHTEvaluation"
+          "returns": "TetherCHTEvaluation",
+          "min_engine": "5.7"
         },
         "get_chooser_cell_raw": {
           "doc": "X.get_chooser_cell_raw(chooser_table_path, column_index, row_index) -> str",
@@ -7212,7 +7228,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "get_chooser_info": {
           "doc": "X.get_chooser_info(chooser_table_path) -> TetherCHTInfo",
@@ -7224,7 +7241,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherCHTInfo"
+          "returns": "TetherCHTInfo",
+          "min_engine": "5.7"
         },
         "get_chooser_row_result": {
           "doc": "X.get_chooser_row_result(chooser_table_path, row_index) -> TetherCHTRowResult",
@@ -7242,12 +7260,14 @@
               "type": ""
             }
           ],
-          "returns": "TetherCHTRowResult"
+          "returns": "TetherCHTRowResult",
+          "min_engine": "5.7"
         },
         "get_last_chooser_error": {
           "doc": "X.get_last_chooser_error() -> str",
           "params": [],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "insert_chooser_row": {
           "doc": "X.insert_chooser_row(chooser_table_path, before_row) -> int32",
@@ -7265,7 +7285,8 @@
               "type": ""
             }
           ],
-          "returns": "int32"
+          "returns": "int32",
+          "min_engine": "5.7"
         },
         "list_chooser_columns": {
           "doc": "X.list_chooser_columns(chooser_table_path) -> Array[TetherCHTColumn]",
@@ -7277,7 +7298,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherCHTColumn]"
+          "returns": "Array[TetherCHTColumn]",
+          "min_engine": "5.7"
         },
         "list_chooser_rows": {
           "doc": "X.list_chooser_rows(chooser_table_path) -> Array[TetherCHTRow]",
@@ -7289,7 +7311,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherCHTRow]"
+          "returns": "Array[TetherCHTRow]",
+          "min_engine": "5.7"
         },
         "list_possible_results": {
           "doc": "X.list_possible_results(chooser_table_path) -> Array[TetherCHTRowResult]",
@@ -7301,7 +7324,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherCHTRowResult]"
+          "returns": "Array[TetherCHTRowResult]",
+          "min_engine": "5.7"
         },
         "move_chooser_column": {
           "doc": "X.move_chooser_column(chooser_table_path, source_index, target_index) -> int32",
@@ -7325,7 +7349,8 @@
               "type": ""
             }
           ],
-          "returns": "int32"
+          "returns": "int32",
+          "min_engine": "5.7"
         },
         "remove_chooser_column": {
           "doc": "X.remove_chooser_column(chooser_table_path, column_index) -> bool",
@@ -7343,7 +7368,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "remove_chooser_row": {
           "doc": "X.remove_chooser_row(chooser_table_path, row_index) -> bool",
@@ -7361,7 +7387,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_chooser_cell_raw": {
           "doc": "X.set_chooser_cell_raw(chooser_table_path, column_index, row_index, t3d_value) -> bool",
@@ -7391,7 +7418,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_chooser_column_disabled": {
           "doc": "X.set_chooser_column_disabled(chooser_table_path, column_index, disabled) -> bool",
@@ -7415,7 +7443,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_chooser_context_object_class": {
           "doc": "X.set_chooser_context_object_class(chooser_table_path, context_class_path, direction) -> bool",
@@ -7439,7 +7468,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_chooser_fallback_asset": {
           "doc": "X.set_chooser_fallback_asset(chooser_table_path, asset_path) -> bool",
@@ -7457,7 +7487,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_chooser_row_disabled": {
           "doc": "X.set_chooser_row_disabled(chooser_table_path, row_index, disabled) -> bool",
@@ -7481,7 +7512,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_chooser_row_result_asset": {
           "doc": "X.set_chooser_row_result_asset(chooser_table_path, row_index, asset_path) -> bool",
@@ -7505,7 +7537,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_chooser_row_result_class": {
           "doc": "X.set_chooser_row_result_class(chooser_table_path, row_index, class_path) -> bool",
@@ -7529,7 +7562,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_chooser_row_result_evaluate_chooser": {
           "doc": "X.set_chooser_row_result_evaluate_chooser(chooser_table_path, row_index, sub_chooser_path) -> bool",
@@ -7553,7 +7587,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         }
       }
     },
@@ -8065,7 +8100,8 @@
               "type": ""
             }
           ],
-          "returns": "int32"
+          "returns": "int32",
+          "min_engine": "5.7"
         },
         "create_data_table_from_csv": {
           "doc": "X.create_data_table_from_csv(asset_path, row_struct_path, csv_content) -> TetherDataTableImportResult",
@@ -10129,7 +10165,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "add_ability_trigger": {
           "doc": "X.add_ability_trigger(ability_blueprint_path, trigger_tag, trigger_source) -> int32",
@@ -13273,7 +13310,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "append_cone": {
           "doc": "X.append_cone(handle, origin, base_radius, height, radial_segments) -> bool",
@@ -13309,7 +13347,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "append_cylinder": {
           "doc": "X.append_cylinder(handle, origin, radius, height, radial_segments) -> bool",
@@ -13345,7 +13384,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "append_sphere": {
           "doc": "X.append_sphere(handle, origin, radius, resolution_uv) -> bool",
@@ -13375,7 +13415,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "bake_normals_to_texture": {
           "doc": "X.bake_normals_to_texture(handle, new_texture_path, resolution) -> str",
@@ -13399,7 +13440,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "bake_occlusion_to_vertex_color": {
           "doc": "X.bake_occlusion_to_vertex_color(handle, occlusion_rays=16) -> bool",
@@ -13417,12 +13459,14 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "create_dynamic_mesh": {
           "doc": "X.create_dynamic_mesh() -> int32",
           "params": [],
-          "returns": "int32"
+          "returns": "int32",
+          "min_engine": "5.7"
         },
         "extrude_selection": {
           "doc": "X.extrude_selection(handle, selection_id, distance) -> bool",
@@ -13446,7 +13490,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "get_mesh_info": {
           "doc": "X.get_mesh_info(handle) -> TetherMeshInfo",
@@ -13458,17 +13503,20 @@
               "type": ""
             }
           ],
-          "returns": "TetherMeshInfo"
+          "returns": "TetherMeshInfo",
+          "min_engine": "5.7"
         },
         "list_dynamic_mesh_handles": {
           "doc": "X.list_dynamic_mesh_handles() -> Array[int32]",
           "params": [],
-          "returns": "Array[int32]"
+          "returns": "Array[int32]",
+          "min_engine": "5.7"
         },
         "list_selections": {
           "doc": "X.list_selections() -> Array[int32]",
           "params": [],
-          "returns": "Array[int32]"
+          "returns": "Array[int32]",
+          "min_engine": "5.7"
         },
         "load_mesh_from_component": {
           "doc": "X.load_mesh_from_component(actor_label, component_name, handle) -> bool",
@@ -13492,7 +13540,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "load_mesh_from_static_mesh": {
           "doc": "X.load_mesh_from_static_mesh(handle, asset_path, lod=0) -> bool",
@@ -13516,7 +13565,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "mesh_boolean": {
           "doc": "X.mesh_boolean(handle_a, handle_b, op) -> bool",
@@ -13540,7 +13590,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "mesh_decimate": {
           "doc": "X.mesh_decimate(handle, target_tris) -> bool",
@@ -13558,7 +13609,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "mesh_displace_from_texture": {
           "doc": "X.mesh_displace_from_texture(handle, texture_path, magnitude, uv_channel=0) -> bool",
@@ -13588,7 +13640,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "mesh_smooth": {
           "doc": "X.mesh_smooth(handle, iterations, strength) -> bool",
@@ -13612,7 +13665,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "mesh_transform": {
           "doc": "X.mesh_transform(handle, transform) -> bool",
@@ -13630,7 +13684,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "mesh_uniform_remesh": {
           "doc": "X.mesh_uniform_remesh(handle, target_tri_count) -> bool",
@@ -13648,7 +13703,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "mesh_uv_unwrap": {
           "doc": "X.mesh_uv_unwrap(handle, method) -> bool",
@@ -13666,7 +13722,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "mesh_voxel_merge": {
           "doc": "X.mesh_voxel_merge(handles, cell_size_cm) -> bool",
@@ -13684,7 +13741,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "recompute_normals_and_tangents": {
           "doc": "X.recompute_normals_and_tangents(handle, angle_threshold_deg) -> bool",
@@ -13702,7 +13760,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "release_dynamic_mesh": {
           "doc": "X.release_dynamic_mesh(handle) -> bool",
@@ -13714,7 +13773,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "release_selection": {
           "doc": "X.release_selection(selection_id) -> bool",
@@ -13726,7 +13786,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "save_mesh_to_existing_static_mesh": {
           "doc": "X.save_mesh_to_existing_static_mesh(handle, existing_asset_path, replace_materials) -> bool",
@@ -13750,7 +13811,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "save_mesh_to_new_static_mesh": {
           "doc": "X.save_mesh_to_new_static_mesh(handle, new_asset_path, material_list) -> str",
@@ -13774,7 +13836,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "select_by_normal_direction": {
           "doc": "X.select_by_normal_direction(handle, normal, max_angle_deg) -> int32",
@@ -13798,7 +13861,8 @@
               "type": ""
             }
           ],
-          "returns": "int32"
+          "returns": "int32",
+          "min_engine": "5.7"
         },
         "sweep_along_spline": {
           "doc": "X.sweep_along_spline(handle, profile_xy, actor_label, component_name, num_path_samples=32) -> bool",
@@ -13834,7 +13898,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         }
       }
     },
@@ -16393,7 +16458,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherAddExpressionResult"
+          "returns": "TetherAddExpressionResult",
+          "min_engine": "5.7"
         },
         "add_material_comment": {
           "doc": "X.add_material_comment(material_path, x, y, width, height, text, color) -> Guid",
@@ -16441,7 +16507,8 @@
               "type": ""
             }
           ],
-          "returns": "Guid"
+          "returns": "Guid",
+          "min_engine": "5.7"
         },
         "add_material_expression": {
           "doc": "X.add_material_expression(material_path, expression_class, x, y) -> TetherAddExpressionResult",
@@ -16471,7 +16538,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherAddExpressionResult"
+          "returns": "TetherAddExpressionResult",
+          "min_engine": "5.7"
         },
         "add_material_reroute": {
           "doc": "X.add_material_reroute(material_path, x, y) -> Guid",
@@ -16495,7 +16563,8 @@
               "type": ""
             }
           ],
-          "returns": "Guid"
+          "returns": "Guid",
+          "min_engine": "5.7"
         },
         "analyze_material": {
           "doc": "X.analyze_material(material_path, instruction_budget, sampler_budget) -> TetherMaterialAnalysis",
@@ -16519,7 +16588,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherMaterialAnalysis"
+          "returns": "TetherMaterialAnalysis",
+          "min_engine": "5.7"
         },
         "apply_material_graph_ops": {
           "doc": "X.apply_material_graph_ops(material_path, ops, compile) -> TetherMaterialGraphOpResult",
@@ -16543,7 +16613,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherMaterialGraphOpResult"
+          "returns": "TetherMaterialGraphOpResult",
+          "min_engine": "5.7"
         },
         "apply_post_process_material": {
           "doc": "X.apply_post_process_material(volume_actor, material_path, weight) -> bool",
@@ -16567,7 +16638,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "auto_fix_material": {
           "doc": "X.auto_fix_material(material_path, fixes, save_after) -> TetherMaterialAutoFixResult",
@@ -16591,7 +16663,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherMaterialAutoFixResult"
+          "returns": "TetherMaterialAutoFixResult",
+          "min_engine": "5.7"
         },
         "auto_layout_material_graph": {
           "doc": "X.auto_layout_material_graph(material_path, column_spacing, row_spacing) -> int32",
@@ -16615,7 +16688,8 @@
               "type": ""
             }
           ],
-          "returns": "int32"
+          "returns": "int32",
+          "min_engine": "5.7"
         },
         "compile_material": {
           "doc": "X.compile_material(material_path, save_after) -> bool",
@@ -16633,7 +16707,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "connect_material_expressions": {
           "doc": "X.connect_material_expressions(material_path, src_guid, src_output_name, dst_guid, dst_input_name) -> bool",
@@ -16669,7 +16744,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "connect_material_output": {
           "doc": "X.connect_material_output(material_path, src_guid, src_output_name, property_name) -> bool",
@@ -16699,7 +16775,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "copy_material_instance_layer_stack": {
           "doc": "X.copy_material_instance_layer_stack(source_material_instance_path, destination_material_instance_path) -> TetherMaterialLayerStackOpResult",
@@ -16717,7 +16794,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherMaterialLayerStackOpResult"
+          "returns": "TetherMaterialLayerStackOpResult",
+          "min_engine": "5.7"
         },
         "create_material": {
           "doc": "X.create_material(path, domain, shading_model, blend_mode, two_sided, use_material_attributes) -> TetherCreateAssetResult",
@@ -16759,7 +16837,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherCreateAssetResult"
+          "returns": "TetherCreateAssetResult",
+          "min_engine": "5.7"
         },
         "create_material_function": {
           "doc": "X.create_material_function(path, description, expose_to_library, library_category) -> TetherCreateAssetResult",
@@ -16789,7 +16868,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherCreateAssetResult"
+          "returns": "TetherCreateAssetResult",
+          "min_engine": "5.7"
         },
         "create_material_instance": {
           "doc": "X.create_material_instance(parent_path, instance_path) -> TetherCreateAssetResult",
@@ -16807,7 +16887,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherCreateAssetResult"
+          "returns": "TetherCreateAssetResult",
+          "min_engine": "5.7"
         },
         "create_post_process_material": {
           "doc": "X.create_post_process_material(path, blendable_location, output_alpha) -> TetherCreateAssetResult",
@@ -16831,7 +16912,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherCreateAssetResult"
+          "returns": "TetherCreateAssetResult",
+          "min_engine": "5.7"
         },
         "delete_material_expression": {
           "doc": "X.delete_material_expression(material_path, guid) -> bool",
@@ -16849,7 +16931,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "diff_material_graph_snapshots": {
           "doc": "X.diff_material_graph_snapshots(before_json, after_json) -> str",
@@ -16867,7 +16950,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "diff_mi_params": {
           "doc": "X.diff_mi_params(path_a, path_b) -> str",
@@ -16885,7 +16969,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "disconnect_material_input": {
           "doc": "X.disconnect_material_input(material_path, dst_guid, dst_input_name) -> bool",
@@ -16909,7 +16994,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "disconnect_material_output": {
           "doc": "X.disconnect_material_output(material_path, property_name) -> bool",
@@ -16927,7 +17013,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "get_material_compile_errors": {
           "doc": "X.get_material_compile_errors(material_path, feature_level, quality) -> Array[str]",
@@ -16951,7 +17038,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[str]"
+          "returns": "Array[str]",
+          "min_engine": "5.7"
         },
         "get_material_function": {
           "doc": "X.get_material_function(function_path) -> TetherMaterialFunctionInfo",
@@ -16963,7 +17051,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherMaterialFunctionInfo"
+          "returns": "TetherMaterialFunctionInfo",
+          "min_engine": "5.7"
         },
         "get_material_graph": {
           "doc": "X.get_material_graph(material_path) -> TetherMaterialGraph",
@@ -16975,7 +17064,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherMaterialGraph"
+          "returns": "TetherMaterialGraph",
+          "min_engine": "5.7"
         },
         "get_material_info": {
           "doc": "X.get_material_info(material_path) -> TetherMaterialInfo",
@@ -16987,7 +17077,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherMaterialInfo"
+          "returns": "TetherMaterialInfo",
+          "min_engine": "5.7"
         },
         "get_material_instance_layer_stack": {
           "doc": "X.get_material_instance_layer_stack(material_instance_path) -> TetherMaterialLayerStack",
@@ -16999,7 +17090,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherMaterialLayerStack"
+          "returns": "TetherMaterialLayerStack",
+          "min_engine": "5.7"
         },
         "get_material_instance_parameters": {
           "doc": "X.get_material_instance_parameters(material_path) -> TetherMaterialInstanceInfo",
@@ -17011,7 +17103,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherMaterialInstanceInfo"
+          "returns": "TetherMaterialInstanceInfo",
+          "min_engine": "5.7"
         },
         "get_material_parameter_collection": {
           "doc": "X.get_material_parameter_collection(collection_path) -> TetherMaterialParameterCollectionInfo",
@@ -17023,7 +17116,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherMaterialParameterCollectionInfo"
+          "returns": "TetherMaterialParameterCollectionInfo",
+          "min_engine": "5.7"
         },
         "get_material_shader_compile_status": {
           "doc": "X.get_material_shader_compile_status(material_path, feature_level, quality) -> TetherShaderCompileStatus",
@@ -17047,7 +17141,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherShaderCompileStatus"
+          "returns": "TetherShaderCompileStatus",
+          "min_engine": "5.7"
         },
         "get_material_stats": {
           "doc": "X.get_material_stats(material_path, feature_level, quality) -> TetherMaterialStats",
@@ -17071,12 +17166,14 @@
               "type": ""
             }
           ],
-          "returns": "TetherMaterialStats"
+          "returns": "TetherMaterialStats",
+          "min_engine": "5.7"
         },
         "get_post_process_state": {
           "doc": "X.get_post_process_state() -> Array[TetherPostProcessVolumeInfo]",
           "params": [],
-          "returns": "Array[TetherPostProcessVolumeInfo]"
+          "returns": "Array[TetherPostProcessVolumeInfo]",
+          "min_engine": "5.7"
         },
         "get_shared_snippet": {
           "doc": "X.get_shared_snippet(name) -> TetherShaderSnippet",
@@ -17088,7 +17185,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherShaderSnippet"
+          "returns": "TetherShaderSnippet",
+          "min_engine": "5.7"
         },
         "list_material_functions": {
           "doc": "X.list_material_functions(path_prefix, max_results) -> Array[TetherMaterialFunctionSummary]",
@@ -17106,7 +17204,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherMaterialFunctionSummary]"
+          "returns": "Array[TetherMaterialFunctionSummary]",
+          "min_engine": "5.7"
         },
         "list_material_instance_chain": {
           "doc": "X.list_material_instance_chain(material_path) -> TetherMaterialInstanceChain",
@@ -17118,12 +17217,14 @@
               "type": ""
             }
           ],
-          "returns": "TetherMaterialInstanceChain"
+          "returns": "TetherMaterialInstanceChain",
+          "min_engine": "5.7"
         },
         "list_shared_snippets": {
           "doc": "X.list_shared_snippets() -> Array[TetherShaderSnippet]",
           "params": [],
-          "returns": "Array[TetherShaderSnippet]"
+          "returns": "Array[TetherShaderSnippet]",
+          "min_engine": "5.7"
         },
         "preview_material": {
           "doc": "X.preview_material(material_path, mesh, lighting, resolution, camera_yaw_deg, camera_pitch_deg, camera_distance, out_png_path) -> bool",
@@ -17177,7 +17278,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "preview_material_complexity": {
           "doc": "X.preview_material_complexity(material_path, mesh, lighting, resolution, camera_yaw_deg, camera_pitch_deg, camera_distance, out_png_path) -> bool",
@@ -17231,7 +17333,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "refresh_texture_resource": {
           "doc": "X.refresh_texture_resource(texture_path, force_derived_data_rebuild=False) -> TetherTextureRefreshResult",
@@ -17249,7 +17352,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherTextureRefreshResult"
+          "returns": "TetherTextureRefreshResult",
+          "min_engine": "5.7"
         },
         "remove_post_process_material": {
           "doc": "X.remove_post_process_material(volume_actor, material_path) -> bool",
@@ -17267,7 +17371,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_material_attribute_layers": {
           "doc": "X.set_material_attribute_layers(material_path, expression_guid, layers, blends, layer_names) -> TetherMaterialGraphOpResult",
@@ -17303,7 +17408,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherMaterialGraphOpResult"
+          "returns": "TetherMaterialGraphOpResult",
+          "min_engine": "5.7"
         },
         "set_material_expression_properties": {
           "doc": "X.set_material_expression_properties(material_path, guid, properties) -> int32",
@@ -17327,7 +17433,8 @@
               "type": ""
             }
           ],
-          "returns": "int32"
+          "returns": "int32",
+          "min_engine": "5.7"
         },
         "set_material_expression_property": {
           "doc": "X.set_material_expression_property(material_path, guid, property_name, value) -> bool",
@@ -17357,7 +17464,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_material_instance_layer_stack": {
           "doc": "X.set_material_instance_layer_stack(material_instance_path, layers) -> TetherMaterialLayerStackOpResult",
@@ -17375,7 +17483,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherMaterialLayerStackOpResult"
+          "returns": "TetherMaterialLayerStackOpResult",
+          "min_engine": "5.7"
         },
         "set_material_parameter_collection": {
           "doc": "X.set_material_parameter_collection(collection_path, params) -> TetherMIParamResult",
@@ -17393,7 +17502,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherMIParamResult"
+          "returns": "TetherMIParamResult",
+          "min_engine": "5.7"
         },
         "set_mi_and_preview": {
           "doc": "X.set_mi_and_preview(material_instance_path, params, mesh, lighting, resolution, camera_yaw_deg, camera_pitch_deg, camera_distance, out_png_path) -> bool",
@@ -17453,7 +17563,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_mi_params": {
           "doc": "X.set_mi_params(material_instance_path, params) -> TetherMIParamResult",
@@ -17471,7 +17582,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherMIParamResult"
+          "returns": "TetherMIParamResult",
+          "min_engine": "5.7"
         },
         "snapshot_material_graph_json": {
           "doc": "X.snapshot_material_graph_json(material_path) -> str",
@@ -17483,7 +17595,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "sweep_mi_params": {
           "doc": "X.sweep_mi_params(material_instance_path, param_name, values, mesh, lighting, resolution, camera_yaw_deg, camera_pitch_deg, camera_distance, grid_cols, out_grid_path) -> Array[str]",
@@ -17555,7 +17668,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[str]"
+          "returns": "Array[str]",
+          "min_engine": "5.7"
         },
         "validate_material_graph_ops": {
           "doc": "X.validate_material_graph_ops(material_path, ops) -> TetherMaterialGraphOpResult",
@@ -17573,7 +17687,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherMaterialGraphOpResult"
+          "returns": "TetherMaterialGraphOpResult",
+          "min_engine": "5.7"
         }
       }
     },
@@ -17589,7 +17704,8 @@
               "type": ""
             }
           ],
-          "returns": "str or None"
+          "returns": "str or None",
+          "min_engine": "5.7"
         }
       }
     },
@@ -17623,7 +17739,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherNiagaraOperationResult"
+          "returns": "TetherNiagaraOperationResult",
+          "min_engine": "5.7"
         },
         "add_niagara_module": {
           "doc": "X.add_niagara_module(system_path, emitter_id_or_name, usage, script_path, suggested_name=\"\", index=-1, enabled=True, save=True) -> TetherNiagaraOperationResult",
@@ -17677,7 +17794,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherNiagaraOperationResult"
+          "returns": "TetherNiagaraOperationResult",
+          "min_engine": "5.7"
         },
         "add_niagara_parameter_assignment": {
           "doc": "X.add_niagara_parameter_assignment(system_path, emitter_id_or_name, usage, parameter_name, type, value, index=-1, save=True) -> TetherNiagaraOperationResult",
@@ -17731,7 +17849,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherNiagaraOperationResult"
+          "returns": "TetherNiagaraOperationResult",
+          "min_engine": "5.7"
         },
         "add_niagara_renderer": {
           "doc": "X.add_niagara_renderer(system_path, emitter_id_or_name, renderer_type, name=\"\", material_path=\"\", mesh_path=\"\", save=True) -> TetherNiagaraOperationResult",
@@ -17779,7 +17898,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherNiagaraOperationResult"
+          "returns": "TetherNiagaraOperationResult",
+          "min_engine": "5.7"
         },
         "add_niagara_user_parameter": {
           "doc": "X.add_niagara_user_parameter(system_path, name, type, default_value, save=True) -> bool",
@@ -17815,7 +17935,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "advance_niagara_preview": {
           "doc": "X.advance_niagara_preview(handle, seconds, tick_delta=0.016667) -> bool",
@@ -17839,7 +17960,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "compile_niagara_system": {
           "doc": "X.compile_niagara_system(system_path, force=True, wait_for_gpu_shaders=True, save=True) -> TetherNiagaraCompileResult",
@@ -17869,7 +17991,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherNiagaraCompileResult"
+          "returns": "TetherNiagaraCompileResult",
+          "min_engine": "5.7"
         },
         "control_niagara_preview": {
           "doc": "X.control_niagara_preview(handle, action) -> bool",
@@ -17887,7 +18010,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "create_dissolve_effect": {
           "doc": "X.create_dissolve_effect(asset_path, style=\"Ash\", material_path=\"\", color=[0.080000, 0.800000, 1.000000, 1.000000], count=128, duration=2.000000, radius=100.000000, direction=[0.000000, 0.000000, 1.000000], save=True) -> TetherNiagaraOperationResult",
@@ -17947,7 +18071,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherNiagaraOperationResult"
+          "returns": "TetherNiagaraOperationResult",
+          "min_engine": "5.7"
         },
         "create_explosion_effect": {
           "doc": "X.create_explosion_effect(asset_path, style=\"Layered\", material_path=\"\", core_color=[1.000000, 0.120000, 0.010000, 1.000000], scale=1.000000, duration=1.500000, debris_count=64, shockwave=True, light=True, save=True) -> TetherNiagaraOperationResult",
@@ -18013,7 +18138,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherNiagaraOperationResult"
+          "returns": "TetherNiagaraOperationResult",
+          "min_engine": "5.7"
         },
         "create_niagara_emitter": {
           "doc": "X.create_niagara_emitter(asset_path, template_emitter_path=\"\", add_default_modules_and_renderer=True, save=True) -> TetherNiagaraOperationResult",
@@ -18043,7 +18169,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherNiagaraOperationResult"
+          "returns": "TetherNiagaraOperationResult",
+          "min_engine": "5.7"
         },
         "create_niagara_system": {
           "doc": "X.create_niagara_system(asset_path, template_system_path=\"\", save=True) -> TetherNiagaraOperationResult",
@@ -18067,7 +18194,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherNiagaraOperationResult"
+          "returns": "TetherNiagaraOperationResult",
+          "min_engine": "5.7"
         },
         "create_niagara_system_from_recipe": {
           "doc": "X.create_niagara_system_from_recipe(asset_path, recipe, compile=True, save=True) -> TetherNiagaraOperationResult",
@@ -18097,7 +18225,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherNiagaraOperationResult"
+          "returns": "TetherNiagaraOperationResult",
+          "min_engine": "5.7"
         },
         "create_spark_effect": {
           "doc": "X.create_spark_effect(asset_path, style=\"Directional\", material_path=\"\", color=[1.000000, 0.450000, 0.050000, 1.000000], count=48, speed=900.000000, lifetime=0.600000, gravity=-980.000000, collision=True, save=True) -> TetherNiagaraOperationResult",
@@ -18163,7 +18292,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherNiagaraOperationResult"
+          "returns": "TetherNiagaraOperationResult",
+          "min_engine": "5.7"
         },
         "create_weapon_trail_effect": {
           "doc": "X.create_weapon_trail_effect(asset_path, style=\"Ribbon\", material_path=\"\", color=[1.000000, 0.350000, 0.050000, 1.000000], width=12.000000, lifetime=0.350000, spawn_rate=90.000000, local_space=False, save=True) -> TetherNiagaraOperationResult",
@@ -18223,7 +18353,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherNiagaraOperationResult"
+          "returns": "TetherNiagaraOperationResult",
+          "min_engine": "5.7"
         },
         "delete_niagara_asset": {
           "doc": "X.delete_niagara_asset(asset_path) -> TetherNiagaraOperationResult",
@@ -18235,7 +18366,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherNiagaraOperationResult"
+          "returns": "TetherNiagaraOperationResult",
+          "min_engine": "5.7"
         },
         "duplicate_niagara_emitter": {
           "doc": "X.duplicate_niagara_emitter(system_path, emitter_id_or_name, new_name, save=True) -> TetherNiagaraOperationResult",
@@ -18265,12 +18397,14 @@
               "type": ""
             }
           ],
-          "returns": "TetherNiagaraOperationResult"
+          "returns": "TetherNiagaraOperationResult",
+          "min_engine": "5.7"
         },
         "get_last_niagara_error": {
           "doc": "X.get_last_niagara_error() -> str",
           "params": [],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "get_niagara_compile_diagnostics": {
           "doc": "X.get_niagara_compile_diagnostics(system_path) -> TetherNiagaraCompileResult",
@@ -18282,7 +18416,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherNiagaraCompileResult"
+          "returns": "TetherNiagaraCompileResult",
+          "min_engine": "5.7"
         },
         "get_niagara_preview_info": {
           "doc": "X.get_niagara_preview_info(handle) -> TetherNiagaraPreviewInfo",
@@ -18294,7 +18429,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherNiagaraPreviewInfo"
+          "returns": "TetherNiagaraPreviewInfo",
+          "min_engine": "5.7"
         },
         "get_niagara_renderer_property": {
           "doc": "X.get_niagara_renderer_property(system_path, emitter_id_or_name, renderer_id, property_name) -> str",
@@ -18324,7 +18460,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "get_niagara_script_info": {
           "doc": "X.get_niagara_script_info(script_path) -> TetherNiagaraScriptInfo",
@@ -18336,7 +18473,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherNiagaraScriptInfo"
+          "returns": "TetherNiagaraScriptInfo",
+          "min_engine": "5.7"
         },
         "get_niagara_system_info": {
           "doc": "X.get_niagara_system_info(system_path) -> TetherNiagaraSystemInfo",
@@ -18348,12 +18486,14 @@
               "type": ""
             }
           ],
-          "returns": "TetherNiagaraSystemInfo"
+          "returns": "TetherNiagaraSystemInfo",
+          "min_engine": "5.7"
         },
         "is_niagara_api_available": {
           "doc": "X.is_niagara_api_available() -> bool",
           "params": [],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "link_niagara_module_input": {
           "doc": "X.link_niagara_module_input(system_path, module_id, input_name, linked_parameter, save=True) -> bool",
@@ -18389,7 +18529,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "list_niagara_emitters": {
           "doc": "X.list_niagara_emitters(system_path) -> Array[TetherNiagaraEmitterInfo]",
@@ -18401,7 +18542,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherNiagaraEmitterInfo]"
+          "returns": "Array[TetherNiagaraEmitterInfo]",
+          "min_engine": "5.7"
         },
         "list_niagara_module_input_object_properties": {
           "doc": "X.list_niagara_module_input_object_properties(system_path, module_id, input_name, include_advanced=False) -> Array[TetherNiagaraPropertyInfo]",
@@ -18431,7 +18573,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherNiagaraPropertyInfo]"
+          "returns": "Array[TetherNiagaraPropertyInfo]",
+          "min_engine": "5.7"
         },
         "list_niagara_module_inputs": {
           "doc": "X.list_niagara_module_inputs(system_path, module_id, include_hidden=False) -> Array[TetherNiagaraModuleInputInfo]",
@@ -18455,7 +18598,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherNiagaraModuleInputInfo]"
+          "returns": "Array[TetherNiagaraModuleInputInfo]",
+          "min_engine": "5.7"
         },
         "list_niagara_modules": {
           "doc": "X.list_niagara_modules(system_path, emitter_id_or_name=\"\", usage=\"All\") -> Array[TetherNiagaraModuleInfo]",
@@ -18479,12 +18623,14 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherNiagaraModuleInfo]"
+          "returns": "Array[TetherNiagaraModuleInfo]",
+          "min_engine": "5.7"
         },
         "list_niagara_previews": {
           "doc": "X.list_niagara_previews() -> Array[TetherNiagaraPreviewInfo]",
           "params": [],
-          "returns": "Array[TetherNiagaraPreviewInfo]"
+          "returns": "Array[TetherNiagaraPreviewInfo]",
+          "min_engine": "5.7"
         },
         "list_niagara_renderer_properties": {
           "doc": "X.list_niagara_renderer_properties(system_path, emitter_id_or_name, renderer_id, include_advanced=False) -> Array[TetherNiagaraPropertyInfo]",
@@ -18514,7 +18660,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherNiagaraPropertyInfo]"
+          "returns": "Array[TetherNiagaraPropertyInfo]",
+          "min_engine": "5.7"
         },
         "list_niagara_renderers": {
           "doc": "X.list_niagara_renderers(system_path, emitter_id_or_name=\"\") -> Array[TetherNiagaraRendererInfo]",
@@ -18532,7 +18679,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherNiagaraRendererInfo]"
+          "returns": "Array[TetherNiagaraRendererInfo]",
+          "min_engine": "5.7"
         },
         "list_niagara_scripts": {
           "doc": "X.list_niagara_scripts(usage=\"Module\", query=\"\", max_results=500) -> Array[TetherNiagaraScriptInfo]",
@@ -18556,7 +18704,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherNiagaraScriptInfo]"
+          "returns": "Array[TetherNiagaraScriptInfo]",
+          "min_engine": "5.7"
         },
         "list_niagara_templates": {
           "doc": "X.list_niagara_templates(asset_type=\"All\", query=\"\", max_results=200) -> Array[TetherNiagaraTemplateInfo]",
@@ -18580,7 +18729,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherNiagaraTemplateInfo]"
+          "returns": "Array[TetherNiagaraTemplateInfo]",
+          "min_engine": "5.7"
         },
         "list_niagara_user_parameters": {
           "doc": "X.list_niagara_user_parameters(system_path) -> Array[TetherNiagaraParameterInfo]",
@@ -18592,12 +18742,14 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherNiagaraParameterInfo]"
+          "returns": "Array[TetherNiagaraParameterInfo]",
+          "min_engine": "5.7"
         },
         "remove_all_niagara_previews": {
           "doc": "X.remove_all_niagara_previews() -> int32",
           "params": [],
-          "returns": "int32"
+          "returns": "int32",
+          "min_engine": "5.7"
         },
         "remove_niagara_emitter": {
           "doc": "X.remove_niagara_emitter(system_path, emitter_id_or_name, save=True) -> bool",
@@ -18621,7 +18773,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "remove_niagara_module": {
           "doc": "X.remove_niagara_module(system_path, module_id, save=True) -> bool",
@@ -18645,7 +18798,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "remove_niagara_preview": {
           "doc": "X.remove_niagara_preview(handle) -> bool",
@@ -18657,7 +18811,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "remove_niagara_renderer": {
           "doc": "X.remove_niagara_renderer(system_path, emitter_id_or_name, renderer_id, save=True) -> bool",
@@ -18687,7 +18842,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "remove_niagara_user_parameter": {
           "doc": "X.remove_niagara_user_parameter(system_path, name, save=True) -> bool",
@@ -18711,7 +18867,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "rename_niagara_emitter": {
           "doc": "X.rename_niagara_emitter(system_path, emitter_id_or_name, new_name, save=True) -> bool",
@@ -18741,7 +18898,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "rename_niagara_user_parameter": {
           "doc": "X.rename_niagara_user_parameter(system_path, old_name, new_name, save=True) -> bool",
@@ -18771,7 +18929,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "reset_niagara_module_input": {
           "doc": "X.reset_niagara_module_input(system_path, module_id, input_name, save=True) -> bool",
@@ -18801,7 +18960,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_niagara_emitter_enabled": {
           "doc": "X.set_niagara_emitter_enabled(system_path, emitter_id_or_name, enabled, save=True) -> bool",
@@ -18831,7 +18991,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_niagara_emitter_properties": {
           "doc": "X.set_niagara_emitter_properties(system_path, emitter_id_or_name, local_space, sim_target, deterministic, random_seed, use_fixed_bounds, fixed_bounds, save=True) -> bool",
@@ -18891,7 +19052,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_niagara_module_data_interface_input": {
           "doc": "X.set_niagara_module_data_interface_input(system_path, module_id, input_name, data_interface_class_path, properties, save=True) -> TetherNiagaraOperationResult",
@@ -18933,7 +19095,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherNiagaraOperationResult"
+          "returns": "TetherNiagaraOperationResult",
+          "min_engine": "5.7"
         },
         "set_niagara_module_dynamic_input": {
           "doc": "X.set_niagara_module_dynamic_input(system_path, module_id, input_name, dynamic_input_script_path, suggested_name=\"\", save=True) -> TetherNiagaraOperationResult",
@@ -18975,7 +19138,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherNiagaraOperationResult"
+          "returns": "TetherNiagaraOperationResult",
+          "min_engine": "5.7"
         },
         "set_niagara_module_enabled": {
           "doc": "X.set_niagara_module_enabled(system_path, module_id, enabled, save=True) -> bool",
@@ -19005,7 +19169,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_niagara_module_input": {
           "doc": "X.set_niagara_module_input(system_path, module_id, input_name, value, save=True) -> bool",
@@ -19041,7 +19206,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_niagara_module_input_object_property": {
           "doc": "X.set_niagara_module_input_object_property(system_path, module_id, input_name, property_name, value, save=True) -> bool",
@@ -19083,7 +19249,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_niagara_module_object_input": {
           "doc": "X.set_niagara_module_object_input(system_path, module_id, input_name, object_path, save=True) -> bool",
@@ -19119,7 +19286,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_niagara_preview_transform": {
           "doc": "X.set_niagara_preview_transform(handle, transform, teleport=False) -> bool",
@@ -19143,7 +19311,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_niagara_preview_variable": {
           "doc": "X.set_niagara_preview_variable(handle, name, type, value) -> bool",
@@ -19173,7 +19342,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_niagara_renderer_binding": {
           "doc": "X.set_niagara_renderer_binding(system_path, emitter_id_or_name, renderer_id, binding_property, variable_name, source_mode=\"Particles\", save=True) -> bool",
@@ -19221,7 +19391,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_niagara_renderer_enabled": {
           "doc": "X.set_niagara_renderer_enabled(system_path, emitter_id_or_name, renderer_id, enabled, save=True) -> bool",
@@ -19257,7 +19428,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_niagara_renderer_material": {
           "doc": "X.set_niagara_renderer_material(system_path, emitter_id_or_name, renderer_id, material_path, material_index=0, save=True) -> bool",
@@ -19299,7 +19471,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_niagara_renderer_property": {
           "doc": "X.set_niagara_renderer_property(system_path, emitter_id_or_name, renderer_id, property_name, value, save=True) -> bool",
@@ -19341,7 +19514,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_niagara_system_effect_type": {
           "doc": "X.set_niagara_system_effect_type(system_path, effect_type_path, save=True) -> bool",
@@ -19365,7 +19539,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_niagara_system_fixed_bounds": {
           "doc": "X.set_niagara_system_fixed_bounds(system_path, enabled, bounds, save=True) -> bool",
@@ -19395,7 +19570,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_niagara_system_warmup": {
           "doc": "X.set_niagara_system_warmup(system_path, warmup_time, tick_delta=0.033333, save=True) -> bool",
@@ -19425,7 +19601,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_niagara_user_parameter_default": {
           "doc": "X.set_niagara_user_parameter_default(system_path, name, value, save=True) -> bool",
@@ -19455,7 +19632,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "spawn_niagara_preview": {
           "doc": "X.spawn_niagara_preview(system_path, transform, auto_activate=True, reset_on_change=True) -> TetherNiagaraOperationResult",
@@ -19485,7 +19663,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherNiagaraOperationResult"
+          "returns": "TetherNiagaraOperationResult",
+          "min_engine": "5.7"
         },
         "validate_niagara_system": {
           "doc": "X.validate_niagara_system(system_path, check_materials=True, check_bounds=True, max_emitters=16, max_renderers_per_emitter=8, max_modules_per_emitter=64) -> TetherNiagaraAuditResult",
@@ -19527,7 +19706,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherNiagaraAuditResult"
+          "returns": "TetherNiagaraAuditResult",
+          "min_engine": "5.7"
         }
       }
     },
@@ -19555,7 +19735,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "get_pcg_component_overrides": {
           "doc": "X.get_pcg_component_overrides(actor_label, component_name) -> Array[TetherPCGOverrideEntry]",
@@ -19573,7 +19754,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherPCGOverrideEntry]"
+          "returns": "Array[TetherPCGOverrideEntry]",
+          "min_engine": "5.7"
         },
         "get_pcg_component_state": {
           "doc": "X.get_pcg_component_state(actor_label, component_name) -> TetherPCGComponentState",
@@ -19591,7 +19773,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherPCGComponentState"
+          "returns": "TetherPCGComponentState",
+          "min_engine": "5.7"
         },
         "list_pcg_components_in_level": {
           "doc": "X.list_pcg_components_in_level(level_filter, max=200) -> Array[TetherPCGComponentEntry]",
@@ -19609,7 +19792,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherPCGComponentEntry]"
+          "returns": "Array[TetherPCGComponentEntry]",
+          "min_engine": "5.7"
         },
         "list_pcg_graph_assets": {
           "doc": "X.list_pcg_graph_assets(filter, max=200) -> Array[str]",
@@ -19627,7 +19811,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[str]"
+          "returns": "Array[str]",
+          "min_engine": "5.7"
         },
         "set_pcg_component_override": {
           "doc": "X.set_pcg_component_override(actor_label, component_name, name, exported_value) -> bool",
@@ -19657,7 +19842,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "trigger_pcg_generate": {
           "doc": "X.trigger_pcg_generate(actor_label, component_name, force=False) -> bool",
@@ -19681,7 +19867,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "wait_for_pcg_generate": {
           "doc": "X.wait_for_pcg_generate(actor_label, component_name, timeout_sec=60.000000) -> TetherPCGWaitResult",
@@ -19705,7 +19892,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherPCGWaitResult"
+          "returns": "TetherPCGWaitResult",
+          "min_engine": "5.7"
         }
       }
     },
@@ -19721,7 +19909,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherAllMaterialsAnalysis"
+          "returns": "TetherAllMaterialsAnalysis",
+          "min_engine": "5.7"
         },
         "begin_auto_hitch_capture": {
           "doc": "X.begin_auto_hitch_capture(threshold_ms=50.000000, max_entries=100) -> bool",
@@ -19751,7 +19940,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherInsightsLaunchResult"
+          "returns": "TetherInsightsLaunchResult",
+          "min_engine": "5.7"
         },
         "clear_hitch_log": {
           "doc": "X.clear_hitch_log() -> None",
@@ -19780,7 +19970,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherPerfSnapshotDelta"
+          "returns": "TetherPerfSnapshotDelta",
+          "min_engine": "5.7"
         },
         "end_auto_hitch_capture": {
           "doc": "X.end_auto_hitch_capture() -> Array[TetherAutoHitchEntry]",
@@ -19932,7 +20123,8 @@
         "get_lumen_diagnostics": {
           "doc": "X.get_lumen_diagnostics() -> TetherLumenDiagnostics",
           "params": [],
-          "returns": "TetherLumenDiagnostics"
+          "returns": "TetherLumenDiagnostics",
+          "min_engine": "5.7"
         },
         "get_memory_stats": {
           "doc": "X.get_memory_stats() -> TetherMemoryStats",
@@ -19972,12 +20164,14 @@
         "get_nanite_stats": {
           "doc": "X.get_nanite_stats() -> TetherNaniteStats",
           "params": [],
-          "returns": "TetherNaniteStats"
+          "returns": "TetherNaniteStats",
+          "min_engine": "5.7"
         },
         "get_per_pass_gpu_timings": {
           "doc": "X.get_per_pass_gpu_timings() -> TetherGpuPassTimings",
           "params": [],
-          "returns": "TetherGpuPassTimings"
+          "returns": "TetherGpuPassTimings",
+          "min_engine": "5.7"
         },
         "get_perf_sampling_state": {
           "doc": "X.get_perf_sampling_state() -> TetherPerfSamplingState",
@@ -20017,7 +20211,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherRenderTargetMemory"
+          "returns": "TetherRenderTargetMemory",
+          "min_engine": "5.7"
         },
         "get_shadow_caster_breakdown": {
           "doc": "X.get_shadow_caster_breakdown(top_n=30) -> Array[TetherActorRenderCost]",
@@ -20065,7 +20260,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherTextureStreamingState"
+          "returns": "TetherTextureStreamingState",
+          "min_engine": "5.7"
         },
         "get_trace_state": {
           "doc": "X.get_trace_state() -> TetherTraceState",
@@ -20153,7 +20349,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherPerfAllocSummary"
+          "returns": "TetherPerfAllocSummary",
+          "min_engine": "5.7"
         },
         "parse_cook_trace_to_summary": {
           "doc": "X.parse_cook_trace_to_summary(utrace_path, top_n=50) -> TetherPerfCookSummary",
@@ -20171,7 +20368,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherPerfCookSummary"
+          "returns": "TetherPerfCookSummary",
+          "min_engine": "5.7"
         },
         "parse_net_trace_to_summary": {
           "doc": "X.parse_net_trace_to_summary(utrace_path) -> TetherPerfNetSummary",
@@ -20183,7 +20381,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherPerfNetSummary"
+          "returns": "TetherPerfNetSummary",
+          "min_engine": "5.7"
         },
         "parse_trace_to_summary": {
           "doc": "X.parse_trace_to_summary(utrace_path, top_n=20, top_n_per_thread=10, top_n_counters=100) -> TetherPerfTraceSummary",
@@ -20213,7 +20412,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherPerfTraceSummary"
+          "returns": "TetherPerfTraceSummary",
+          "min_engine": "5.7"
         },
         "reset_frame_time_histogram": {
           "doc": "X.reset_frame_time_histogram() -> None",
@@ -20322,7 +20522,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherPSDAddResult"
+          "returns": "TetherPSDAddResult",
+          "min_engine": "5.7"
         },
         "add_blend_space_to_database": {
           "doc": "X.add_blend_space_to_database(database_path, blend_space_path, h_samples, v_samples, use_grid_for_sampling, use_single_sample, blend_param_x, blend_param_y, sampling_range_min, sampling_range_max, mirror_option, enabled) -> TetherPSDAddResult",
@@ -20400,7 +20601,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherPSDAddResult"
+          "returns": "TetherPSDAddResult",
+          "min_engine": "5.7"
         },
         "clear_database_animations": {
           "doc": "X.clear_database_animations(database_path) -> int32",
@@ -20412,7 +20614,8 @@
               "type": ""
             }
           ],
-          "returns": "int32"
+          "returns": "int32",
+          "min_engine": "5.7"
         },
         "find_databases_using_animation": {
           "doc": "X.find_databases_using_animation(animation_asset_path) -> Array[str]",
@@ -20424,7 +20627,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[str]"
+          "returns": "Array[str]",
+          "min_engine": "5.7"
         },
         "get_database_info": {
           "doc": "X.get_database_info(database_path) -> TetherPSDInfo",
@@ -20436,7 +20640,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherPSDInfo"
+          "returns": "TetherPSDInfo",
+          "min_engine": "5.7"
         },
         "get_index_status": {
           "doc": "X.get_index_status(database_path) -> str",
@@ -20448,7 +20653,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "get_schema_info": {
           "doc": "X.get_schema_info(schema_path) -> TetherPSSInfo",
@@ -20460,7 +20666,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherPSSInfo"
+          "returns": "TetherPSSInfo",
+          "min_engine": "5.7"
         },
         "invalidate_index": {
           "doc": "X.invalidate_index(database_path) -> bool",
@@ -20472,7 +20679,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "is_index_ready": {
           "doc": "X.is_index_ready(database_path) -> bool",
@@ -20484,7 +20692,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "list_database_animations": {
           "doc": "X.list_database_animations(database_path) -> Array[TetherPSDAnimEntry]",
@@ -20496,7 +20705,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherPSDAnimEntry]"
+          "returns": "Array[TetherPSDAnimEntry]",
+          "min_engine": "5.7"
         },
         "list_schema_channels": {
           "doc": "X.list_schema_channels(schema_path) -> Array[TetherPSSChannel]",
@@ -20508,7 +20718,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherPSSChannel]"
+          "returns": "Array[TetherPSSChannel]",
+          "min_engine": "5.7"
         },
         "remove_database_animation_at": {
           "doc": "X.remove_database_animation_at(database_path, index) -> bool",
@@ -20526,7 +20737,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "remove_database_animation_by_asset": {
           "doc": "X.remove_database_animation_by_asset(database_path, animation_asset_path) -> int32",
@@ -20544,7 +20756,8 @@
               "type": ""
             }
           ],
-          "returns": "int32"
+          "returns": "int32",
+          "min_engine": "5.7"
         },
         "request_async_build_index": {
           "doc": "X.request_async_build_index(database_path) -> str",
@@ -20556,7 +20769,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "set_crashing_legs_channel": {
           "doc": "X.set_crashing_legs_channel(schema_path, left_thigh_bone, right_thigh_bone, left_foot_bone, right_foot_bone, weight=0.200000, allowed_tolerance=0.300000, use_continuing_pose=True) -> TetherPSSCrashingLegsChannelResult",
@@ -20610,7 +20824,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherPSSCrashingLegsChannelResult"
+          "returns": "TetherPSSCrashingLegsChannelResult",
+          "min_engine": "5.7"
         },
         "set_database_animation_enabled": {
           "doc": "X.set_database_animation_enabled(database_path, index, enabled) -> bool",
@@ -20634,7 +20849,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_database_animation_mirror_option": {
           "doc": "X.set_database_animation_mirror_option(database_path, index, mirror_option) -> bool",
@@ -20658,7 +20874,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_database_animation_sampling_range": {
           "doc": "X.set_database_animation_sampling_range(database_path, index, sampling_range_min, sampling_range_max) -> bool",
@@ -20688,7 +20905,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_database_blend_space_sampling": {
           "doc": "X.set_database_blend_space_sampling(database_path, index, h_samples, v_samples, use_grid_for_sampling, use_single_sample, blend_param_x, blend_param_y) -> bool",
@@ -20742,7 +20960,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         }
       }
     },
@@ -22356,7 +22575,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "add_control_rig_branch_node": {
           "doc": "X.add_control_rig_branch_node(asset_path, graph_name, position, node_name) -> str",
@@ -22386,7 +22606,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "add_control_rig_comment_node": {
           "doc": "X.add_control_rig_comment_node(asset_path, graph_name, comment_text, position, size, color, node_name) -> str",
@@ -22434,7 +22655,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "add_control_rig_connector": {
           "doc": "X.add_control_rig_connector(asset_path, name, connector_type, description, optional, array) -> str",
@@ -22476,7 +22698,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "add_control_rig_control": {
           "doc": "X.add_control_rig_control(asset_path, name, parent_name, parent_type, control_type, initial_value, offset_transform, shape_transform, shape_name, shape_color, animatable) -> str",
@@ -22548,7 +22771,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "add_control_rig_curve": {
           "doc": "X.add_control_rig_curve(asset_path, name, value) -> str",
@@ -22572,7 +22796,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "add_control_rig_element_tag": {
           "doc": "X.add_control_rig_element_tag(asset_path, name, element_type, tag) -> bool",
@@ -22602,7 +22827,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "add_control_rig_member_variable": {
           "doc": "X.add_control_rig_member_variable(asset_path, name, cpp_type, default_value, public, read_only) -> str",
@@ -22644,7 +22870,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "add_control_rig_null": {
           "doc": "X.add_control_rig_null(asset_path, name, parent_name, parent_type, transform, global_transform) -> str",
@@ -22686,7 +22913,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "add_control_rig_template_node": {
           "doc": "X.add_control_rig_template_node(asset_path, graph_name, notation, position, node_name) -> str",
@@ -22722,7 +22950,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "add_control_rig_unit_node": {
           "doc": "X.add_control_rig_unit_node(asset_path, graph_name, unit_struct_path, method_name, position, node_name) -> str",
@@ -22764,7 +22993,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "add_control_rig_variable_node": {
           "doc": "X.add_control_rig_variable_node(asset_path, graph_name, variable_name, cpp_type, cpp_type_object_path, getter, default_value, position, node_name, create_member_variable) -> str",
@@ -22830,7 +23060,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "add_default_ik_retarget_ops": {
           "doc": "X.add_default_ik_retarget_ops(asset_path) -> bool",
@@ -22842,7 +23073,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "add_ik_retarget_op": {
           "doc": "X.add_ik_retarget_op(asset_path, op_type_path, op_name) -> int32",
@@ -22866,7 +23098,8 @@
               "type": ""
             }
           ],
-          "returns": "int32"
+          "returns": "int32",
+          "min_engine": "5.7"
         },
         "add_ik_rig_goal": {
           "doc": "X.add_ik_rig_goal(asset_path, goal_name, bone_name) -> str",
@@ -22890,7 +23123,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "add_ik_rig_retarget_chain": {
           "doc": "X.add_ik_rig_retarget_chain(asset_path, chain_name, start_bone, end_bone, goal_name) -> str",
@@ -22926,7 +23160,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "add_ik_rig_solver": {
           "doc": "X.add_ik_rig_solver(asset_path, solver_type_path) -> int32",
@@ -22944,7 +23179,8 @@
               "type": ""
             }
           ],
-          "returns": "int32"
+          "returns": "int32",
+          "min_engine": "5.7"
         },
         "analyze_animation_quality": {
           "doc": "X.analyze_animation_quality(animation_path, foot_bone_names, num_samples, contact_height_tolerance, foot_slide_speed_tolerance, joint_angular_delta_tolerance_degrees, max_reported_bones) -> TetherAnimationQualityReport",
@@ -22992,7 +23228,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherAnimationQualityReport"
+          "returns": "TetherAnimationQualityReport",
+          "min_engine": "5.7"
         },
         "apply_ik_rig_auto_setup": {
           "doc": "X.apply_ik_rig_auto_setup(asset_path, retarget_definition, full_body_ik) -> bool",
@@ -23016,7 +23253,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "auto_align_ik_retarget_pose": {
           "doc": "X.auto_align_ik_retarget_pose(asset_path, side, bone_names, method) -> bool",
@@ -23046,7 +23284,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "auto_layout_control_rig_graph": {
           "doc": "X.auto_layout_control_rig_graph(asset_path, graph_name, horizontal_spacing, vertical_spacing) -> TetherRigLayoutResult",
@@ -23076,7 +23315,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherRigLayoutResult"
+          "returns": "TetherRigLayoutResult",
+          "min_engine": "5.7"
         },
         "auto_map_ik_retarget_chains": {
           "doc": "X.auto_map_ik_retarget_chains(asset_path, mapping_type, force_remap, op_name) -> bool",
@@ -23106,7 +23346,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "batch_retarget_animations": {
           "doc": "X.batch_retarget_animations(retargeter_path, source_asset_paths, source_mesh_path, target_mesh_path, destination_folder, search, replace, prefix, suffix, include_referenced_assets, overwrite_existing, save) -> TetherRetargetBatchResult",
@@ -23184,7 +23425,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherRetargetBatchResult"
+          "returns": "TetherRetargetBatchResult",
+          "min_engine": "5.7"
         },
         "compile_control_rig": {
           "doc": "X.compile_control_rig(asset_path, save) -> TetherRigValidationReport",
@@ -23202,7 +23444,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherRigValidationReport"
+          "returns": "TetherRigValidationReport",
+          "min_engine": "5.7"
         },
         "configure_ik_retargeter_assets": {
           "doc": "X.configure_ik_retargeter_assets(asset_path, source_ik_rig_path, target_ik_rig_path, source_preview_mesh_path, target_preview_mesh_path) -> bool",
@@ -23238,7 +23481,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "connect_control_rig_pins": {
           "doc": "X.connect_control_rig_pins(asset_path, graph_name, output_pin_path, input_pin_path, create_cast_node) -> bool",
@@ -23274,7 +23518,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "connect_ik_rig_goal_to_solver": {
           "doc": "X.connect_ik_rig_goal_to_solver(asset_path, goal_name, solver_index) -> bool",
@@ -23298,7 +23543,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "create_control_rig": {
           "doc": "X.create_control_rig(asset_path, source_skeletal_asset_path, modular_rig, import_curves) -> TetherRigOperationResult",
@@ -23328,7 +23574,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherRigOperationResult"
+          "returns": "TetherRigOperationResult",
+          "min_engine": "5.7"
         },
         "create_ik_retarget_pose": {
           "doc": "X.create_ik_retarget_pose(asset_path, pose_name, side) -> str",
@@ -23352,7 +23599,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "create_ik_retargeter": {
           "doc": "X.create_ik_retargeter(asset_path, source_ik_rig_path, target_ik_rig_path, source_preview_mesh_path, target_preview_mesh_path, add_default_ops) -> TetherRigOperationResult",
@@ -23394,7 +23642,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherRigOperationResult"
+          "returns": "TetherRigOperationResult",
+          "min_engine": "5.7"
         },
         "create_ik_rig": {
           "doc": "X.create_ik_rig(asset_path, skeletal_mesh_path) -> TetherRigOperationResult",
@@ -23412,7 +23661,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherRigOperationResult"
+          "returns": "TetherRigOperationResult",
+          "min_engine": "5.7"
         },
         "disconnect_control_rig_pins": {
           "doc": "X.disconnect_control_rig_pins(asset_path, graph_name, output_pin_path, input_pin_path) -> bool",
@@ -23442,7 +23692,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "disconnect_ik_rig_goal_from_solver": {
           "doc": "X.disconnect_ik_rig_goal_from_solver(asset_path, goal_name, solver_index) -> bool",
@@ -23466,7 +23717,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "duplicate_ik_retarget_pose": {
           "doc": "X.duplicate_ik_retarget_pose(asset_path, pose_name, new_name, side) -> str",
@@ -23496,7 +23748,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "evaluate_control_rig": {
           "doc": "X.evaluate_control_rig(asset_path, event_name, input_controls) -> TetherControlRigEvaluationResult",
@@ -23520,7 +23773,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherControlRigEvaluationResult"
+          "returns": "TetherControlRigEvaluationResult",
+          "min_engine": "5.7"
         },
         "get_control_rig_control_property": {
           "doc": "X.get_control_rig_control_property(asset_path, control_name, property_path) -> TetherRigPropertyResult",
@@ -23544,7 +23798,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherRigPropertyResult"
+          "returns": "TetherRigPropertyResult",
+          "min_engine": "5.7"
         },
         "get_control_rig_info": {
           "doc": "X.get_control_rig_info(asset_path) -> TetherControlRigInfo",
@@ -23556,7 +23811,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherControlRigInfo"
+          "returns": "TetherControlRigInfo",
+          "min_engine": "5.7"
         },
         "get_ik_retarget_op_property": {
           "doc": "X.get_ik_retarget_op_property(asset_path, op_index, property_path) -> TetherRigPropertyResult",
@@ -23580,7 +23836,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherRigPropertyResult"
+          "returns": "TetherRigPropertyResult",
+          "min_engine": "5.7"
         },
         "get_ik_retargeter_info": {
           "doc": "X.get_ik_retargeter_info(asset_path) -> TetherIKRetargeterInfo",
@@ -23592,7 +23849,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherIKRetargeterInfo"
+          "returns": "TetherIKRetargeterInfo",
+          "min_engine": "5.7"
         },
         "get_ik_rig_info": {
           "doc": "X.get_ik_rig_info(asset_path) -> TetherIKRigInfo",
@@ -23604,7 +23862,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherIKRigInfo"
+          "returns": "TetherIKRigInfo",
+          "min_engine": "5.7"
         },
         "get_ik_rig_property": {
           "doc": "X.get_ik_rig_property(asset_path, target_kind, solver_index, target_name, property_path) -> TetherRigPropertyResult",
@@ -23640,12 +23899,14 @@
               "type": ""
             }
           ],
-          "returns": "TetherRigPropertyResult"
+          "returns": "TetherRigPropertyResult",
+          "min_engine": "5.7"
         },
         "get_last_rig_error": {
           "doc": "X.get_last_rig_error() -> str",
           "params": [],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "import_control_rig_hierarchy": {
           "doc": "X.import_control_rig_hierarchy(asset_path, source_skeletal_asset_path, replace_existing, import_curves) -> bool",
@@ -23675,12 +23936,14 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "is_rig_api_available": {
           "doc": "X.is_rig_api_available() -> bool",
           "params": [],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "list_control_rig_control_properties": {
           "doc": "X.list_control_rig_control_properties(asset_path, control_name) -> Array[TetherRigPropertyInfo]",
@@ -23698,7 +23961,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherRigPropertyInfo]"
+          "returns": "Array[TetherRigPropertyInfo]",
+          "min_engine": "5.7"
         },
         "list_control_rig_elements": {
           "doc": "X.list_control_rig_elements(asset_path, element_type) -> Array[TetherRigElementInfo]",
@@ -23716,7 +23980,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherRigElementInfo]"
+          "returns": "Array[TetherRigElementInfo]",
+          "min_engine": "5.7"
         },
         "list_control_rig_graphs": {
           "doc": "X.list_control_rig_graphs(asset_path) -> Array[TetherRigVMGraphInfo]",
@@ -23728,7 +23993,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherRigVMGraphInfo]"
+          "returns": "Array[TetherRigVMGraphInfo]",
+          "min_engine": "5.7"
         },
         "list_control_rig_links": {
           "doc": "X.list_control_rig_links(asset_path, graph_name) -> Array[TetherRigVMLinkInfo]",
@@ -23746,7 +24012,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherRigVMLinkInfo]"
+          "returns": "Array[TetherRigVMLinkInfo]",
+          "min_engine": "5.7"
         },
         "list_control_rig_nodes": {
           "doc": "X.list_control_rig_nodes(asset_path, graph_name) -> Array[TetherRigVMNodeInfo]",
@@ -23764,7 +24031,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherRigVMNodeInfo]"
+          "returns": "Array[TetherRigVMNodeInfo]",
+          "min_engine": "5.7"
         },
         "list_ik_retarget_chain_mappings": {
           "doc": "X.list_ik_retarget_chain_mappings(asset_path, op_name) -> Array[TetherIKChainMappingInfo]",
@@ -23782,7 +24050,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherIKChainMappingInfo]"
+          "returns": "Array[TetherIKChainMappingInfo]",
+          "min_engine": "5.7"
         },
         "list_ik_retarget_op_properties": {
           "doc": "X.list_ik_retarget_op_properties(asset_path, op_index) -> Array[TetherRigPropertyInfo]",
@@ -23800,7 +24069,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherRigPropertyInfo]"
+          "returns": "Array[TetherRigPropertyInfo]",
+          "min_engine": "5.7"
         },
         "list_ik_retarget_ops": {
           "doc": "X.list_ik_retarget_ops(asset_path) -> Array[TetherIKRetargetOpInfo]",
@@ -23812,7 +24082,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherIKRetargetOpInfo]"
+          "returns": "Array[TetherIKRetargetOpInfo]",
+          "min_engine": "5.7"
         },
         "list_ik_retarget_poses": {
           "doc": "X.list_ik_retarget_poses(asset_path, side) -> Array[TetherIKRetargetPoseInfo]",
@@ -23830,7 +24101,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherIKRetargetPoseInfo]"
+          "returns": "Array[TetherIKRetargetPoseInfo]",
+          "min_engine": "5.7"
         },
         "list_ik_retarget_profiles": {
           "doc": "X.list_ik_retarget_profiles(asset_path) -> Array[str]",
@@ -23842,7 +24114,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[str]"
+          "returns": "Array[str]",
+          "min_engine": "5.7"
         },
         "list_ik_rig_goals": {
           "doc": "X.list_ik_rig_goals(asset_path) -> Array[TetherIKGoalInfo]",
@@ -23854,7 +24127,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherIKGoalInfo]"
+          "returns": "Array[TetherIKGoalInfo]",
+          "min_engine": "5.7"
         },
         "list_ik_rig_properties": {
           "doc": "X.list_ik_rig_properties(asset_path, target_kind, solver_index, target_name) -> Array[TetherRigPropertyInfo]",
@@ -23884,7 +24158,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherRigPropertyInfo]"
+          "returns": "Array[TetherRigPropertyInfo]",
+          "min_engine": "5.7"
         },
         "list_ik_rig_retarget_chains": {
           "doc": "X.list_ik_rig_retarget_chains(asset_path) -> Array[TetherIKChainInfo]",
@@ -23896,7 +24171,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherIKChainInfo]"
+          "returns": "Array[TetherIKChainInfo]",
+          "min_engine": "5.7"
         },
         "list_ik_rig_solvers": {
           "doc": "X.list_ik_rig_solvers(asset_path) -> Array[TetherIKSolverInfo]",
@@ -23908,7 +24184,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherIKSolverInfo]"
+          "returns": "Array[TetherIKSolverInfo]",
+          "min_engine": "5.7"
         },
         "list_rig_types": {
           "doc": "X.list_rig_types(kind, query, max_results) -> Array[TetherRigTypeInfo]",
@@ -23932,7 +24209,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherRigTypeInfo]"
+          "returns": "Array[TetherRigTypeInfo]",
+          "min_engine": "5.7"
         },
         "move_ik_retarget_op": {
           "doc": "X.move_ik_retarget_op(asset_path, op_index, target_index) -> bool",
@@ -23956,7 +24234,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "move_ik_rig_solver": {
           "doc": "X.move_ik_rig_solver(asset_path, solver_index, target_index) -> bool",
@@ -23980,7 +24259,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "remove_control_rig_element": {
           "doc": "X.remove_control_rig_element(asset_path, name, element_type) -> bool",
@@ -24004,7 +24284,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "remove_control_rig_element_tag": {
           "doc": "X.remove_control_rig_element_tag(asset_path, name, element_type, tag) -> bool",
@@ -24034,7 +24315,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "remove_control_rig_member_variable": {
           "doc": "X.remove_control_rig_member_variable(asset_path, name) -> bool",
@@ -24052,7 +24334,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "remove_control_rig_node": {
           "doc": "X.remove_control_rig_node(asset_path, graph_name, node_name) -> bool",
@@ -24076,7 +24359,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "remove_ik_retarget_op": {
           "doc": "X.remove_ik_retarget_op(asset_path, op_index) -> bool",
@@ -24094,7 +24378,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "remove_ik_retarget_pose": {
           "doc": "X.remove_ik_retarget_pose(asset_path, pose_name, side) -> bool",
@@ -24118,7 +24403,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "remove_ik_retarget_profile": {
           "doc": "X.remove_ik_retarget_profile(asset_path, profile_name) -> bool",
@@ -24136,7 +24422,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "remove_ik_rig_goal": {
           "doc": "X.remove_ik_rig_goal(asset_path, goal_name) -> bool",
@@ -24154,7 +24441,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "remove_ik_rig_retarget_chain": {
           "doc": "X.remove_ik_rig_retarget_chain(asset_path, chain_name) -> bool",
@@ -24172,7 +24460,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "remove_ik_rig_solver": {
           "doc": "X.remove_ik_rig_solver(asset_path, solver_index) -> bool",
@@ -24190,7 +24479,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "rename_control_rig_element": {
           "doc": "X.rename_control_rig_element(asset_path, name, element_type, new_name) -> str",
@@ -24220,7 +24510,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "rename_ik_retarget_pose": {
           "doc": "X.rename_ik_retarget_pose(asset_path, pose_name, new_name, side) -> bool",
@@ -24250,7 +24541,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "rename_ik_rig_retarget_chain": {
           "doc": "X.rename_ik_rig_retarget_chain(asset_path, chain_name, new_name) -> str",
@@ -24274,7 +24566,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "reparent_control_rig_element": {
           "doc": "X.reparent_control_rig_element(asset_path, name, element_type, parent_name, parent_type, maintain_global_transform) -> bool",
@@ -24316,7 +24609,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "reset_ik_retarget_pose": {
           "doc": "X.reset_ik_retarget_pose(asset_path, side, pose_name, bone_names) -> bool",
@@ -24346,7 +24640,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "save_current_ik_retarget_profile": {
           "doc": "X.save_current_ik_retarget_profile(asset_path, profile_name, apply_source_pose, apply_target_pose, force_all_ik_off) -> bool",
@@ -24382,7 +24677,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_control_rig_control_property": {
           "doc": "X.set_control_rig_control_property(asset_path, control_name, property_path, value) -> bool",
@@ -24412,7 +24708,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_control_rig_control_shape": {
           "doc": "X.set_control_rig_control_shape(asset_path, control_name, shape_name, shape_color, visible) -> bool",
@@ -24448,7 +24745,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_control_rig_element_transform": {
           "doc": "X.set_control_rig_element_transform(asset_path, name, element_type, transform, global_transform, initial, affect_children) -> bool",
@@ -24496,7 +24794,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_control_rig_node_position": {
           "doc": "X.set_control_rig_node_position(asset_path, graph_name, node_name, position) -> bool",
@@ -24526,7 +24825,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_control_rig_pin_default_value": {
           "doc": "X.set_control_rig_pin_default_value(asset_path, graph_name, pin_path, default_value, resize_arrays) -> bool",
@@ -24562,7 +24862,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_current_ik_retarget_pose": {
           "doc": "X.set_current_ik_retarget_pose(asset_path, pose_name, side) -> bool",
@@ -24586,7 +24887,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_current_ik_retarget_profile": {
           "doc": "X.set_current_ik_retarget_profile(asset_path, profile_name) -> bool",
@@ -24604,7 +24906,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_ik_retarget_chain_mapping": {
           "doc": "X.set_ik_retarget_chain_mapping(asset_path, target_chain_name, source_chain_name, op_name) -> bool",
@@ -24634,7 +24937,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_ik_retarget_op_enabled": {
           "doc": "X.set_ik_retarget_op_enabled(asset_path, op_index, enabled) -> bool",
@@ -24658,7 +24962,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_ik_retarget_op_parent": {
           "doc": "X.set_ik_retarget_op_parent(asset_path, child_op_name, parent_op_name) -> bool",
@@ -24682,7 +24987,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_ik_retarget_op_property": {
           "doc": "X.set_ik_retarget_op_property(asset_path, op_index, property_path, value) -> bool",
@@ -24712,7 +25018,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_ik_retarget_pose_bone_rotation": {
           "doc": "X.set_ik_retarget_pose_bone_rotation(asset_path, side, bone_name, rotation_offset) -> bool",
@@ -24742,7 +25049,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_ik_retarget_pose_root_offset": {
           "doc": "X.set_ik_retarget_pose_root_offset(asset_path, side, translation_offset) -> bool",
@@ -24766,7 +25074,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_ik_rig_bone_excluded": {
           "doc": "X.set_ik_rig_bone_excluded(asset_path, bone_name, excluded) -> bool",
@@ -24790,7 +25099,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_ik_rig_property": {
           "doc": "X.set_ik_rig_property(asset_path, target_kind, solver_index, target_name, property_path, value) -> bool",
@@ -24832,7 +25142,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_ik_rig_retarget_root": {
           "doc": "X.set_ik_rig_retarget_root(asset_path, root_bone_name) -> bool",
@@ -24850,7 +25161,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_ik_rig_solver_bones": {
           "doc": "X.set_ik_rig_solver_bones(asset_path, solver_index, start_bone, end_bone) -> bool",
@@ -24880,7 +25192,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_ik_rig_solver_enabled": {
           "doc": "X.set_ik_rig_solver_enabled(asset_path, solver_index, enabled) -> bool",
@@ -24904,7 +25217,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "validate_control_rig": {
           "doc": "X.validate_control_rig(asset_path, save) -> TetherRigValidationReport",
@@ -24922,7 +25236,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherRigValidationReport"
+          "returns": "TetherRigValidationReport",
+          "min_engine": "5.7"
         },
         "validate_ik_retargeter": {
           "doc": "X.validate_ik_retargeter(asset_path, initialize_processor, save) -> TetherRigValidationReport",
@@ -24946,7 +25261,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherRigValidationReport"
+          "returns": "TetherRigValidationReport",
+          "min_engine": "5.7"
         },
         "validate_ik_rig": {
           "doc": "X.validate_ik_rig(asset_path, save) -> TetherRigValidationReport",
@@ -24964,7 +25280,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherRigValidationReport"
+          "returns": "TetherRigValidationReport",
+          "min_engine": "5.7"
         }
       }
     },
@@ -24998,7 +25315,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "add_smart_object_binding": {
           "doc": "X.add_smart_object_binding(asset_path, source_id, source_path, target_id, target_path) -> bool",
@@ -25034,7 +25352,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "add_smart_object_component": {
           "doc": "X.add_smart_object_component(actor_path, definition_asset_path, component_name=\"SmartObject\", can_be_part_of_collection=False, register_with_subsystem=True) -> str",
@@ -25070,7 +25389,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "add_smart_object_definition_data": {
           "doc": "X.add_smart_object_definition_data(asset_path, struct_type_path, slot_id=\"\", insert_index=-1) -> str",
@@ -25100,7 +25420,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "add_smart_object_parameter": {
           "doc": "X.add_smart_object_parameter(asset_path, name, type, default_value=\"\") -> str",
@@ -25130,7 +25451,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "add_smart_object_slot": {
           "doc": "X.add_smart_object_slot(asset_path, name, offset, rotation, enabled=True, insert_index=-1) -> str",
@@ -25172,7 +25494,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "add_smart_object_world_condition": {
           "doc": "X.add_smart_object_world_condition(asset_path, condition_struct_path, slot_id=\"\", operator=\"And\", expression_depth=0, invert=False, insert_index=-1) -> int32",
@@ -25220,7 +25543,8 @@
               "type": ""
             }
           ],
-          "returns": "int32"
+          "returns": "int32",
+          "min_engine": "5.7"
         },
         "claim_smart_object_slot": {
           "doc": "X.claim_smart_object_slot(slot_handle, user_actor_path=\"\", claim_priority=\"Normal\") -> TetherSmartObjectClaimResult",
@@ -25244,7 +25568,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherSmartObjectClaimResult"
+          "returns": "TetherSmartObjectClaimResult",
+          "min_engine": "5.7"
         },
         "control_persistent_smart_object_collection": {
           "doc": "X.control_persistent_smart_object_collection(collection_actor_path, action) -> bool",
@@ -25262,7 +25587,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "control_smart_object_component": {
           "doc": "X.control_smart_object_component(component_path, action) -> bool",
@@ -25280,7 +25606,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "create_persistent_smart_object_collection": {
           "doc": "X.create_persistent_smart_object_collection(actor_label=\"SmartObjectPersistentCollection\") -> str",
@@ -25292,7 +25619,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "create_runtime_smart_object": {
           "doc": "X.create_runtime_smart_object(definition_asset_path, transform, owner_actor_path=\"\") -> str",
@@ -25316,7 +25644,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "create_smart_object_definition": {
           "doc": "X.create_smart_object_definition(asset_path) -> TetherSmartObjectCreateResult",
@@ -25328,7 +25657,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherSmartObjectCreateResult"
+          "returns": "TetherSmartObjectCreateResult",
+          "min_engine": "5.7"
         },
         "debug_smart_object_subsystem": {
           "doc": "X.debug_smart_object_subsystem(action) -> bool",
@@ -25340,7 +25670,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "destroy_persistent_smart_object_collection": {
           "doc": "X.destroy_persistent_smart_object_collection(collection_actor_path) -> bool",
@@ -25352,7 +25683,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "destroy_runtime_smart_object": {
           "doc": "X.destroy_runtime_smart_object(smart_object_handle) -> bool",
@@ -25364,7 +25696,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "duplicate_smart_object_slot": {
           "doc": "X.duplicate_smart_object_slot(asset_path, source_slot_id, new_name=\"\", insert_index=-1) -> str",
@@ -25394,7 +25727,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "find_smart_object_entrance": {
           "doc": "X.find_smart_object_entrance(slot_handle, request) -> TetherSmartObjectEntranceResult",
@@ -25412,12 +25746,14 @@
               "type": ""
             }
           ],
-          "returns": "TetherSmartObjectEntranceResult"
+          "returns": "TetherSmartObjectEntranceResult",
+          "min_engine": "5.7"
         },
         "get_last_smart_object_error": {
           "doc": "X.get_last_smart_object_error() -> str",
           "params": [],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "get_smart_object_behavior_property": {
           "doc": "X.get_smart_object_behavior_property(asset_path, behavior_object_path, property_path) -> TetherSmartObjectPropertyResult",
@@ -25441,7 +25777,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherSmartObjectPropertyResult"
+          "returns": "TetherSmartObjectPropertyResult",
+          "min_engine": "5.7"
         },
         "get_smart_object_component_info": {
           "doc": "X.get_smart_object_component_info(component_path) -> TetherSmartObjectComponentInfo",
@@ -25453,7 +25790,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherSmartObjectComponentInfo"
+          "returns": "TetherSmartObjectComponentInfo",
+          "min_engine": "5.7"
         },
         "get_smart_object_definition_data_property": {
           "doc": "X.get_smart_object_definition_data_property(asset_path, data_id, property_path) -> TetherSmartObjectPropertyResult",
@@ -25477,7 +25815,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherSmartObjectPropertyResult"
+          "returns": "TetherSmartObjectPropertyResult",
+          "min_engine": "5.7"
         },
         "get_smart_object_definition_info": {
           "doc": "X.get_smart_object_definition_info(asset_path) -> TetherSmartObjectDefinitionInfo",
@@ -25489,7 +25828,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherSmartObjectDefinitionInfo"
+          "returns": "TetherSmartObjectDefinitionInfo",
+          "min_engine": "5.7"
         },
         "get_smart_object_definition_property": {
           "doc": "X.get_smart_object_definition_property(asset_path, property_path) -> TetherSmartObjectPropertyResult",
@@ -25507,7 +25847,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherSmartObjectPropertyResult"
+          "returns": "TetherSmartObjectPropertyResult",
+          "min_engine": "5.7"
         },
         "get_smart_object_slot_property": {
           "doc": "X.get_smart_object_slot_property(asset_path, slot_id, property_path) -> TetherSmartObjectPropertyResult",
@@ -25531,7 +25872,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherSmartObjectPropertyResult"
+          "returns": "TetherSmartObjectPropertyResult",
+          "min_engine": "5.7"
         },
         "get_smart_object_tag_query_json": {
           "doc": "X.get_smart_object_tag_query_json(asset_path, slot_id=\"\") -> str",
@@ -25549,7 +25891,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "get_smart_object_world_condition_property": {
           "doc": "X.get_smart_object_world_condition_property(asset_path, slot_id, condition_index, property_path) -> TetherSmartObjectPropertyResult",
@@ -25579,12 +25922,14 @@
               "type": ""
             }
           ],
-          "returns": "TetherSmartObjectPropertyResult"
+          "returns": "TetherSmartObjectPropertyResult",
+          "min_engine": "5.7"
         },
         "is_smart_object_api_available": {
           "doc": "X.is_smart_object_api_available() -> bool",
           "params": [],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "list_persistent_smart_object_collection_entries": {
           "doc": "X.list_persistent_smart_object_collection_entries(collection_actor_path) -> Array[TetherSmartObjectCollectionEntryInfo]",
@@ -25596,7 +25941,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherSmartObjectCollectionEntryInfo]"
+          "returns": "Array[TetherSmartObjectCollectionEntryInfo]",
+          "min_engine": "5.7"
         },
         "list_persistent_smart_object_collections": {
           "doc": "X.list_persistent_smart_object_collections(pie_only=False) -> Array[TetherSmartObjectCollectionInfo]",
@@ -25608,7 +25954,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherSmartObjectCollectionInfo]"
+          "returns": "Array[TetherSmartObjectCollectionInfo]",
+          "min_engine": "5.7"
         },
         "list_smart_object_behavior_definitions": {
           "doc": "X.list_smart_object_behavior_definitions(asset_path, slot_id=\"\") -> Array[TetherSmartObjectBehaviorInfo]",
@@ -25626,7 +25973,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherSmartObjectBehaviorInfo]"
+          "returns": "Array[TetherSmartObjectBehaviorInfo]",
+          "min_engine": "5.7"
         },
         "list_smart_object_behavior_properties": {
           "doc": "X.list_smart_object_behavior_properties(asset_path, behavior_object_path, include_inherited=True) -> Array[TetherSmartObjectPropertyInfo]",
@@ -25650,12 +25998,14 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherSmartObjectPropertyInfo]"
+          "returns": "Array[TetherSmartObjectPropertyInfo]",
+          "min_engine": "5.7"
         },
         "list_smart_object_behavior_types": {
           "doc": "X.list_smart_object_behavior_types() -> Array[TetherSmartObjectTypeInfo]",
           "params": [],
-          "returns": "Array[TetherSmartObjectTypeInfo]"
+          "returns": "Array[TetherSmartObjectTypeInfo]",
+          "min_engine": "5.7"
         },
         "list_smart_object_bindable_structs": {
           "doc": "X.list_smart_object_bindable_structs(asset_path) -> Array[TetherSmartObjectBindableStructInfo]",
@@ -25667,7 +26017,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherSmartObjectBindableStructInfo]"
+          "returns": "Array[TetherSmartObjectBindableStructInfo]",
+          "min_engine": "5.7"
         },
         "list_smart_object_bindings": {
           "doc": "X.list_smart_object_bindings(asset_path) -> Array[TetherSmartObjectBindingInfo]",
@@ -25679,12 +26030,14 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherSmartObjectBindingInfo]"
+          "returns": "Array[TetherSmartObjectBindingInfo]",
+          "min_engine": "5.7"
         },
         "list_smart_object_claims": {
           "doc": "X.list_smart_object_claims() -> Array[TetherSmartObjectClaimResult]",
           "params": [],
-          "returns": "Array[TetherSmartObjectClaimResult]"
+          "returns": "Array[TetherSmartObjectClaimResult]",
+          "min_engine": "5.7"
         },
         "list_smart_object_components": {
           "doc": "X.list_smart_object_components(pie_only=False) -> Array[TetherSmartObjectComponentInfo]",
@@ -25696,7 +26049,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherSmartObjectComponentInfo]"
+          "returns": "Array[TetherSmartObjectComponentInfo]",
+          "min_engine": "5.7"
         },
         "list_smart_object_definition_data": {
           "doc": "X.list_smart_object_definition_data(asset_path, slot_id=\"\") -> Array[TetherSmartObjectDefinitionDataInfo]",
@@ -25714,7 +26068,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherSmartObjectDefinitionDataInfo]"
+          "returns": "Array[TetherSmartObjectDefinitionDataInfo]",
+          "min_engine": "5.7"
         },
         "list_smart_object_definition_data_properties": {
           "doc": "X.list_smart_object_definition_data_properties(asset_path, data_id, include_inherited=True) -> Array[TetherSmartObjectPropertyInfo]",
@@ -25738,7 +26093,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherSmartObjectPropertyInfo]"
+          "returns": "Array[TetherSmartObjectPropertyInfo]",
+          "min_engine": "5.7"
         },
         "list_smart_object_definition_data_types": {
           "doc": "X.list_smart_object_definition_data_types(asset_path, slot_id=\"\") -> Array[TetherSmartObjectTypeInfo]",
@@ -25756,7 +26112,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherSmartObjectTypeInfo]"
+          "returns": "Array[TetherSmartObjectTypeInfo]",
+          "min_engine": "5.7"
         },
         "list_smart_object_definition_properties": {
           "doc": "X.list_smart_object_definition_properties(asset_path, include_inherited=True) -> Array[TetherSmartObjectPropertyInfo]",
@@ -25774,7 +26131,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherSmartObjectPropertyInfo]"
+          "returns": "Array[TetherSmartObjectPropertyInfo]",
+          "min_engine": "5.7"
         },
         "list_smart_object_parameters": {
           "doc": "X.list_smart_object_parameters(asset_path) -> Array[TetherSmartObjectParameterInfo]",
@@ -25786,7 +26144,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherSmartObjectParameterInfo]"
+          "returns": "Array[TetherSmartObjectParameterInfo]",
+          "min_engine": "5.7"
         },
         "list_smart_object_runtime_slots": {
           "doc": "X.list_smart_object_runtime_slots(smart_object_handle=\"\", component_path=\"\", claim_priority=\"Normal\") -> Array[TetherSmartObjectRuntimeSlotInfo]",
@@ -25810,7 +26169,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherSmartObjectRuntimeSlotInfo]"
+          "returns": "Array[TetherSmartObjectRuntimeSlotInfo]",
+          "min_engine": "5.7"
         },
         "list_smart_object_slot_properties": {
           "doc": "X.list_smart_object_slot_properties(asset_path, slot_id) -> Array[TetherSmartObjectPropertyInfo]",
@@ -25828,7 +26188,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherSmartObjectPropertyInfo]"
+          "returns": "Array[TetherSmartObjectPropertyInfo]",
+          "min_engine": "5.7"
         },
         "list_smart_object_slots": {
           "doc": "X.list_smart_object_slots(asset_path) -> Array[TetherSmartObjectSlotInfo]",
@@ -25840,7 +26201,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherSmartObjectSlotInfo]"
+          "returns": "Array[TetherSmartObjectSlotInfo]",
+          "min_engine": "5.7"
         },
         "list_smart_object_world_condition_properties": {
           "doc": "X.list_smart_object_world_condition_properties(asset_path, slot_id, condition_index, include_inherited=True) -> Array[TetherSmartObjectPropertyInfo]",
@@ -25870,7 +26232,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherSmartObjectPropertyInfo]"
+          "returns": "Array[TetherSmartObjectPropertyInfo]",
+          "min_engine": "5.7"
         },
         "list_smart_object_world_condition_types": {
           "doc": "X.list_smart_object_world_condition_types(asset_path, slot_id=\"\") -> Array[TetherSmartObjectTypeInfo]",
@@ -25888,7 +26251,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherSmartObjectTypeInfo]"
+          "returns": "Array[TetherSmartObjectTypeInfo]",
+          "min_engine": "5.7"
         },
         "list_smart_object_world_conditions": {
           "doc": "X.list_smart_object_world_conditions(asset_path, slot_id=\"\") -> Array[TetherSmartObjectWorldConditionInfo]",
@@ -25906,7 +26270,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherSmartObjectWorldConditionInfo]"
+          "returns": "Array[TetherSmartObjectWorldConditionInfo]",
+          "min_engine": "5.7"
         },
         "move_smart_object_behavior_definition": {
           "doc": "X.move_smart_object_behavior_definition(asset_path, behavior_object_path, new_index) -> bool",
@@ -25930,7 +26295,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "move_smart_object_definition_data": {
           "doc": "X.move_smart_object_definition_data(asset_path, data_id, new_index) -> bool",
@@ -25954,7 +26320,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "move_smart_object_slot": {
           "doc": "X.move_smart_object_slot(asset_path, slot_id, new_index) -> bool",
@@ -25978,7 +26345,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "move_smart_object_world_condition": {
           "doc": "X.move_smart_object_world_condition(asset_path, slot_id, condition_index, new_index) -> bool",
@@ -26008,7 +26376,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "occupy_smart_object_claim": {
           "doc": "X.occupy_smart_object_claim(claim_token, behavior_class_path) -> TetherSmartObjectClaimResult",
@@ -26026,7 +26395,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherSmartObjectClaimResult"
+          "returns": "TetherSmartObjectClaimResult",
+          "min_engine": "5.7"
         },
         "query_smart_objects": {
           "doc": "X.query_smart_objects(center, extent, user_tags, activity_tags, behavior_class_paths, activity_match=\"All\", claim_priority=\"Normal\", evaluate_conditions=True, include_claimed_slots=False, include_disabled_slots=False, user_actor_path=\"\", sort_by_distance=True, max_results=0) -> Array[TetherSmartObjectQueryResult]",
@@ -26110,7 +26480,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherSmartObjectQueryResult]"
+          "returns": "Array[TetherSmartObjectQueryResult]",
+          "min_engine": "5.7"
         },
         "release_smart_object_claim": {
           "doc": "X.release_smart_object_claim(claim_token) -> bool",
@@ -26122,7 +26493,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "remove_smart_object_behavior_definition": {
           "doc": "X.remove_smart_object_behavior_definition(asset_path, behavior_object_path) -> bool",
@@ -26140,7 +26512,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "remove_smart_object_binding": {
           "doc": "X.remove_smart_object_binding(asset_path, target_id, target_path) -> bool",
@@ -26164,7 +26537,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "remove_smart_object_component": {
           "doc": "X.remove_smart_object_component(component_path) -> bool",
@@ -26176,7 +26550,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "remove_smart_object_definition_data": {
           "doc": "X.remove_smart_object_definition_data(asset_path, data_id) -> bool",
@@ -26194,7 +26569,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "remove_smart_object_parameter": {
           "doc": "X.remove_smart_object_parameter(asset_path, name) -> bool",
@@ -26212,7 +26588,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "remove_smart_object_slot": {
           "doc": "X.remove_smart_object_slot(asset_path, slot_id) -> bool",
@@ -26230,7 +26607,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "remove_smart_object_world_condition": {
           "doc": "X.remove_smart_object_world_condition(asset_path, slot_id, condition_index) -> bool",
@@ -26254,7 +26632,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "rename_smart_object_parameter": {
           "doc": "X.rename_smart_object_parameter(asset_path, old_name, new_name) -> bool",
@@ -26278,7 +26657,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "send_smart_object_slot_event": {
           "doc": "X.send_smart_object_slot_event(slot_handle, event_tag) -> bool",
@@ -26296,7 +26676,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_smart_object_behavior_property": {
           "doc": "X.set_smart_object_behavior_property(asset_path, behavior_object_path, property_path, value) -> bool",
@@ -26326,7 +26707,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_smart_object_component_definition": {
           "doc": "X.set_smart_object_component_definition(component_path, definition_asset_path, register_with_subsystem=True) -> bool",
@@ -26350,7 +26732,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_smart_object_definition_data_property": {
           "doc": "X.set_smart_object_definition_data_property(asset_path, data_id, property_path, value) -> bool",
@@ -26380,7 +26763,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_smart_object_definition_property": {
           "doc": "X.set_smart_object_definition_property(asset_path, property_path, value) -> bool",
@@ -26404,7 +26788,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_smart_object_parameter_value": {
           "doc": "X.set_smart_object_parameter_value(asset_path, name, value) -> bool",
@@ -26428,7 +26813,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_smart_object_runtime_enabled": {
           "doc": "X.set_smart_object_runtime_enabled(smart_object_handle, enabled, reason_tag=\"\") -> bool",
@@ -26452,7 +26838,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_smart_object_runtime_slot_enabled": {
           "doc": "X.set_smart_object_runtime_slot_enabled(slot_handle, enabled) -> bool",
@@ -26470,7 +26857,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_smart_object_runtime_tags": {
           "doc": "X.set_smart_object_runtime_tags(handle, scope, tags, replace=True) -> bool",
@@ -26500,7 +26888,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_smart_object_slot_property": {
           "doc": "X.set_smart_object_slot_property(asset_path, slot_id, property_path, value) -> bool",
@@ -26530,7 +26919,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_smart_object_tag_policies": {
           "doc": "X.set_smart_object_tag_policies(asset_path, user_tags_filtering_policy, activity_tags_merging_policy) -> bool",
@@ -26554,7 +26944,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_smart_object_tag_query_json": {
           "doc": "X.set_smart_object_tag_query_json(asset_path, query_json, slot_id=\"\") -> bool",
@@ -26578,7 +26969,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_smart_object_tags": {
           "doc": "X.set_smart_object_tags(asset_path, tags, slot_id=\"\", tag_set=\"Activity\") -> bool",
@@ -26608,7 +27000,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_smart_object_world_condition_expression": {
           "doc": "X.set_smart_object_world_condition_expression(asset_path, slot_id, condition_index, operator, expression_depth, invert) -> bool",
@@ -26650,7 +27043,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_smart_object_world_condition_property": {
           "doc": "X.set_smart_object_world_condition_property(asset_path, slot_id, condition_index, property_path, value) -> bool",
@@ -26686,7 +27080,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "validate_smart_object_definition": {
           "doc": "X.validate_smart_object_definition(asset_path) -> TetherSmartObjectValidationResult",
@@ -26698,7 +27093,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherSmartObjectValidationResult"
+          "returns": "TetherSmartObjectValidationResult",
+          "min_engine": "5.7"
         },
         "validate_smart_object_definition_entrances": {
           "doc": "X.validate_smart_object_definition_entrances(asset_path, owner_transform, request, skip_actor_path=\"\") -> Array[TetherSmartObjectEntranceResult]",
@@ -26728,7 +27124,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherSmartObjectEntranceResult]"
+          "returns": "Array[TetherSmartObjectEntranceResult]",
+          "min_engine": "5.7"
         }
       }
     },
@@ -26774,7 +27171,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "add_state_tree_node": {
           "doc": "X.add_state_tree_node(asset_path, owner_id, scope, type_path, insert_index=-1) -> str",
@@ -26810,7 +27208,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "add_state_tree_root_parameter": {
           "doc": "X.add_state_tree_root_parameter(asset_path, name, type, default_value=\"\") -> str",
@@ -26840,7 +27239,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "add_state_tree_state": {
           "doc": "X.add_state_tree_state(asset_path, parent_state_id, name, state_type=\"State\", insert_index=-1) -> str",
@@ -26876,7 +27276,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "add_state_tree_transition": {
           "doc": "X.add_state_tree_transition(asset_path, state_id, trigger, target_type, target_state_id=\"\", required_event_tag=\"\", insert_index=-1) -> str",
@@ -26924,7 +27325,8 @@
               "type": ""
             }
           ],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "clear_state_tree_bindings_for_item": {
           "doc": "X.clear_state_tree_bindings_for_item(asset_path, item_id) -> int32",
@@ -26942,7 +27344,8 @@
               "type": ""
             }
           ],
-          "returns": "int32"
+          "returns": "int32",
+          "min_engine": "5.7"
         },
         "clear_state_tree_breakpoints": {
           "doc": "X.clear_state_tree_breakpoints(asset_path) -> bool",
@@ -26954,7 +27357,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "compile_state_tree": {
           "doc": "X.compile_state_tree(asset_path, run_validation=True) -> TetherStateTreeCompileResult",
@@ -26972,7 +27376,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherStateTreeCompileResult"
+          "returns": "TetherStateTreeCompileResult",
+          "min_engine": "5.7"
         },
         "control_state_tree_component": {
           "doc": "X.control_state_tree_component(component_path, action, reason=\"Tether\") -> bool",
@@ -26996,7 +27401,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "create_state_tree": {
           "doc": "X.create_state_tree(asset_path, schema_class_path) -> TetherStateTreeCreateResult",
@@ -27014,12 +27420,14 @@
               "type": ""
             }
           ],
-          "returns": "TetherStateTreeCreateResult"
+          "returns": "TetherStateTreeCreateResult",
+          "min_engine": "5.7"
         },
         "get_last_state_tree_error": {
           "doc": "X.get_last_state_tree_error() -> str",
           "params": [],
-          "returns": "str"
+          "returns": "str",
+          "min_engine": "5.7"
         },
         "get_state_tree_component_info": {
           "doc": "X.get_state_tree_component_info(component_path) -> TetherStateTreeComponentInfo",
@@ -27031,7 +27439,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherStateTreeComponentInfo"
+          "returns": "TetherStateTreeComponentInfo",
+          "min_engine": "5.7"
         },
         "get_state_tree_info": {
           "doc": "X.get_state_tree_info(asset_path) -> TetherStateTreeAssetInfo",
@@ -27043,7 +27452,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherStateTreeAssetInfo"
+          "returns": "TetherStateTreeAssetInfo",
+          "min_engine": "5.7"
         },
         "get_state_tree_node_property": {
           "doc": "X.get_state_tree_node_property(asset_path, node_id, data_source, property_path) -> TetherStateTreePropertyResult",
@@ -27073,7 +27483,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherStateTreePropertyResult"
+          "returns": "TetherStateTreePropertyResult",
+          "min_engine": "5.7"
         },
         "get_state_tree_state_property": {
           "doc": "X.get_state_tree_state_property(asset_path, state_id, property_path) -> TetherStateTreePropertyResult",
@@ -27097,7 +27508,8 @@
               "type": ""
             }
           ],
-          "returns": "TetherStateTreePropertyResult"
+          "returns": "TetherStateTreePropertyResult",
+          "min_engine": "5.7"
         },
         "get_state_tree_transition_property": {
           "doc": "X.get_state_tree_transition_property(asset_path, transition_id, property_path) -> TetherStateTreePropertyResult",
@@ -27121,12 +27533,14 @@
               "type": ""
             }
           ],
-          "returns": "TetherStateTreePropertyResult"
+          "returns": "TetherStateTreePropertyResult",
+          "min_engine": "5.7"
         },
         "is_state_tree_api_available": {
           "doc": "X.is_state_tree_api_available() -> bool",
           "params": [],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "list_state_tree_bindable_structs": {
           "doc": "X.list_state_tree_bindable_structs(asset_path, target_id=\"\") -> Array[TetherStateTreeBindableStructInfo]",
@@ -27144,7 +27558,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherStateTreeBindableStructInfo]"
+          "returns": "Array[TetherStateTreeBindableStructInfo]",
+          "min_engine": "5.7"
         },
         "list_state_tree_bindings": {
           "doc": "X.list_state_tree_bindings(asset_path) -> Array[TetherStateTreeBindingInfo]",
@@ -27156,7 +27571,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherStateTreeBindingInfo]"
+          "returns": "Array[TetherStateTreeBindingInfo]",
+          "min_engine": "5.7"
         },
         "list_state_tree_breakpoints": {
           "doc": "X.list_state_tree_breakpoints(asset_path) -> Array[TetherStateTreeBreakpointInfo]",
@@ -27168,7 +27584,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherStateTreeBreakpointInfo]"
+          "returns": "Array[TetherStateTreeBreakpointInfo]",
+          "min_engine": "5.7"
         },
         "list_state_tree_components": {
           "doc": "X.list_state_tree_components(pie_only=False) -> Array[TetherStateTreeComponentInfo]",
@@ -27180,7 +27597,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherStateTreeComponentInfo]"
+          "returns": "Array[TetherStateTreeComponentInfo]",
+          "min_engine": "5.7"
         },
         "list_state_tree_node_properties": {
           "doc": "X.list_state_tree_node_properties(asset_path, node_id, data_source=\"Instance\", include_inherited=True) -> Array[TetherStateTreePropertyInfo]",
@@ -27210,7 +27628,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherStateTreePropertyInfo]"
+          "returns": "Array[TetherStateTreePropertyInfo]",
+          "min_engine": "5.7"
         },
         "list_state_tree_node_types": {
           "doc": "X.list_state_tree_node_types(asset_path, kind=\"\", include_disallowed=False) -> Array[TetherStateTreeNodeTypeInfo]",
@@ -27234,7 +27653,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherStateTreeNodeTypeInfo]"
+          "returns": "Array[TetherStateTreeNodeTypeInfo]",
+          "min_engine": "5.7"
         },
         "list_state_tree_nodes": {
           "doc": "X.list_state_tree_nodes(asset_path, scope=\"\") -> Array[TetherStateTreeNodeInfo]",
@@ -27252,7 +27672,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherStateTreeNodeInfo]"
+          "returns": "Array[TetherStateTreeNodeInfo]",
+          "min_engine": "5.7"
         },
         "list_state_tree_parameters": {
           "doc": "X.list_state_tree_parameters(asset_path, scope_id=\"\") -> Array[TetherStateTreeParameterInfo]",
@@ -27270,7 +27691,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherStateTreeParameterInfo]"
+          "returns": "Array[TetherStateTreeParameterInfo]",
+          "min_engine": "5.7"
         },
         "list_state_tree_states": {
           "doc": "X.list_state_tree_states(asset_path) -> Array[TetherStateTreeStateInfo]",
@@ -27282,7 +27704,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherStateTreeStateInfo]"
+          "returns": "Array[TetherStateTreeStateInfo]",
+          "min_engine": "5.7"
         },
         "list_state_tree_transitions": {
           "doc": "X.list_state_tree_transitions(asset_path, state_id=\"\") -> Array[TetherStateTreeTransitionInfo]",
@@ -27300,7 +27723,8 @@
               "type": ""
             }
           ],
-          "returns": "Array[TetherStateTreeTransitionInfo]"
+          "returns": "Array[TetherStateTreeTransitionInfo]",
+          "min_engine": "5.7"
         },
         "move_state_tree_node": {
           "doc": "X.move_state_tree_node(asset_path, node_id, new_index) -> bool",
@@ -27324,7 +27748,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "move_state_tree_state": {
           "doc": "X.move_state_tree_state(asset_path, state_id, new_parent_state_id, insert_index=-1) -> bool",
@@ -27354,7 +27779,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "move_state_tree_transition": {
           "doc": "X.move_state_tree_transition(asset_path, transition_id, new_index) -> bool",
@@ -27378,7 +27804,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "remove_state_tree_binding": {
           "doc": "X.remove_state_tree_binding(asset_path, target_id, target_path) -> bool",
@@ -27402,7 +27829,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "remove_state_tree_node": {
           "doc": "X.remove_state_tree_node(asset_path, node_id) -> bool",
@@ -27420,7 +27848,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "remove_state_tree_root_parameter": {
           "doc": "X.remove_state_tree_root_parameter(asset_path, name) -> bool",
@@ -27438,7 +27867,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "remove_state_tree_state": {
           "doc": "X.remove_state_tree_state(asset_path, state_id) -> bool",
@@ -27456,7 +27886,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "remove_state_tree_transition": {
           "doc": "X.remove_state_tree_transition(asset_path, transition_id) -> bool",
@@ -27474,7 +27905,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "rename_state_tree_root_parameter": {
           "doc": "X.rename_state_tree_root_parameter(asset_path, old_name, new_name) -> bool",
@@ -27498,7 +27930,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "send_state_tree_component_event": {
           "doc": "X.send_state_tree_component_event(component_path, event_tag, origin=\"Tether\") -> bool",
@@ -27522,7 +27955,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_state_tree_breakpoint": {
           "doc": "X.set_state_tree_breakpoint(asset_path, item_id, breakpoint_type, enabled) -> bool",
@@ -27552,7 +27986,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_state_tree_component_asset": {
           "doc": "X.set_state_tree_component_asset(component_path, asset_path) -> bool",
@@ -27570,7 +28005,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_state_tree_linked_asset": {
           "doc": "X.set_state_tree_linked_asset(asset_path, state_id, linked_asset_path) -> bool",
@@ -27594,7 +28030,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_state_tree_linked_state": {
           "doc": "X.set_state_tree_linked_state(asset_path, state_id, linked_state_id) -> bool",
@@ -27618,7 +28055,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_state_tree_node_property": {
           "doc": "X.set_state_tree_node_property(asset_path, node_id, data_source, property_path, value) -> bool",
@@ -27654,7 +28092,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_state_tree_parameter_value": {
           "doc": "X.set_state_tree_parameter_value(asset_path, scope_id, name, value, mark_overridden=True) -> bool",
@@ -27690,7 +28129,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_state_tree_state_property": {
           "doc": "X.set_state_tree_state_property(asset_path, state_id, property_path, value) -> bool",
@@ -27720,7 +28160,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_state_tree_state_type": {
           "doc": "X.set_state_tree_state_type(asset_path, state_id, state_type) -> bool",
@@ -27744,7 +28185,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_state_tree_transition_property": {
           "doc": "X.set_state_tree_transition_property(asset_path, transition_id, property_path, value) -> bool",
@@ -27774,7 +28216,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "set_state_tree_transition_target": {
           "doc": "X.set_state_tree_transition_target(asset_path, transition_id, target_type, target_state_id=\"\") -> bool",
@@ -27804,7 +28247,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         },
         "validate_state_tree": {
           "doc": "X.validate_state_tree(asset_path) -> bool",
@@ -27816,7 +28260,8 @@
               "type": ""
             }
           ],
-          "returns": "bool"
+          "returns": "bool",
+          "min_engine": "5.7"
         }
       }
     },

@@ -424,6 +424,28 @@ except AttributeError as __ub_e:
 '''
 
 
+def _contains_future_import(code: str) -> bool:
+    """True if the script imports from __future__ anywhere.
+
+    future imports must precede every other statement at module top, so a
+    script containing one cannot be re-indented inside our try wrapper.
+    Docstrings, comments, or earlier statements would all move the future
+    import to a non-top position → SyntaxError. AST-based so those prefixes
+    are handled correctly (a leading docstring does NOT count as a statement).
+    """
+    import ast as _ast
+    try:
+        tree = _ast.parse(code)
+    except SyntaxError:
+        # Unparseable code is preflight's problem, not ours; assume the worst
+        # so we never rewrite a possibly-fragile script.
+        return True
+    return any(
+        isinstance(node, _ast.ImportFrom) and node.module == "__future__"
+        for node in _ast.walk(tree)
+    )
+
+
 def _wrap_for_attr_enrichment(user_code: str) -> str:
     """Wrap user code in try/except AttributeError to enrich 'has no attribute' errors
     with valid-attrs + did-you-mean. Best-effort: if wrapping fails (or env opt-out),
@@ -442,15 +464,20 @@ def _wrap_for_attr_enrichment(user_code: str) -> str:
         else:
             indented.append(line)
     body = "\n".join(indented)
-    # Note: we do NOT wrap if user code contains unindented future imports (they
-    # must be at module top before any other statement). Detect minimally.
-    if user_code.lstrip().startswith("from __future__"):
+    # Any __future__ import must sit at module top before other statements,
+    # so re-indenting such a script inside `try:` would break it — skip wrapping.
+    if _contains_future_import(user_code):
         return user_code
     return f"{_JSON_COMPACT_PREAMBLE}\n{_ATTR_ENRICH_PREAMBLE}\ntry:\n{body}\n{_ATTR_ENRICH_HANDLER}"
 
 
-def _preflight_or_skip(code: str) -> "tuple[list[str], list[str]]":
+def _preflight_or_skip(code: str,
+                       engine_version: "str | None" = None) -> "tuple[list[str], list[str]]":
     """Run AST preflight on `code`. Returns (errors, warnings).
+
+    engine_version (discovery Endpoint.engine_version) enables the
+    stub-function version gate — calls to functions the target editor's
+    engine can't really execute become hard errors.
 
     Best-effort: if tether_preflight or its manifest is missing, returns
     ([], []) so the call proceeds normally — preflight is additive, not
@@ -461,7 +488,7 @@ def _preflight_or_skip(code: str) -> "tuple[list[str], list[str]]":
     except ImportError:
         return [], []
     try:
-        return lint(code)
+        return lint(code, engine_version=engine_version)
     except Exception:
         return [], []
 
@@ -553,7 +580,9 @@ def _validate_response_frame_length(frame_length: int) -> None:
     if frame_length <= 0 or frame_length > MAX_RESPONSE_FRAME_BYTES:
         raise TetherProtocolError(
             f"invalid response frame length {frame_length}; "
-            f"expected 1..{MAX_RESPONSE_FRAME_BYTES} bytes"
+            f"expected 1..{MAX_RESPONSE_FRAME_BYTES} bytes "
+            f"(response may exceed {MAX_RESPONSE_FRAME_BYTES // (1024 * 1024)}MB — "
+            "paginate prints or reduce output volume inside your script)"
         )
 
 
@@ -1008,10 +1037,14 @@ def cmd_wait_compile(args):
 
     deadline = _time.time() + args.wait_timeout
     poll = max(0.1, float(args.poll_interval))
+    # Embed CLI args via json.dumps so asset paths containing quotes or
+    # backslashes stay valid string literals (raw f-string interpolation
+    # would produce a SyntaxError on e.g. a path with an apostrophe).
     code = (
         "import unreal, json\n"
         f"r = unreal.TetherMaterialLibrary.get_material_shader_compile_status("
-        f"'{args.material_path}', '{args.feature_level}', '{args.quality}')\n"
+        f"{json.dumps(args.material_path)}, {json.dumps(args.feature_level)}, "
+        f"{json.dumps(args.quality)})\n"
         "print(json.dumps({'found': bool(r.found), 'ready': bool(r.shader_map_ready),"
         " 'pending': int(r.pending_assets_global), 'fl': str(r.feature_level),"
         " 'ql': str(r.quality_level), 'err': str(r.error)}))\n"
@@ -1094,9 +1127,11 @@ def cmd_wait_pose_index(args):
 
     deadline = _time.time() + args.wait_timeout
     poll = max(0.1, float(args.poll_interval))
+    # See cmd_wait_compile: json.dumps keeps paths with quotes/backslashes
+    # valid as Python string literals.
     code = (
         "import unreal, json\n"
-        f"status = unreal.TetherPoseSearchLibrary.get_index_status('{args.database_path}')\n"
+        f"status = unreal.TetherPoseSearchLibrary.get_index_status({json.dumps(args.database_path)})\n"
         "print(json.dumps({'status': str(status)}))\n"
     )
 
@@ -1256,7 +1291,12 @@ def cmd_preflight(args):
         except OSError as e:
             print(f"ERROR: cannot read {args.file}: {e}", file=sys.stderr)
             return 2
-    errs = _preflight_or_skip(code)
+    # _preflight_or_skip returns (errors, warnings) — unpack, don't treat the
+    # tuple itself as the error list (a non-empty tuple is always truthy,
+    # which made even clean scripts exit 1).
+    errs, _warns = _preflight_or_skip(code, getattr(args, "engine_version", None))
+    for w in _warns:
+        print(w, file=sys.stderr)
     if not errs:
         if args.json:
             print(json.dumps({"ok": True, "errors": []}))
@@ -1305,24 +1345,26 @@ def cmd_list_editors(args):
 
 
 def _execute(args, code: str, mode: str = "exec", src: "str | None" = None) -> int:
+    # Resolve the target FIRST so preflight can gate stub-backed functions
+    # against the discovered editor's engine version. resolve_target is
+    # cheap (cached UDP discovery / env parsing) and its failure modes are
+    # surfaced below with the same exit codes as before.
+    host, port, token, project_path, identity = resolve_target(args)
+
     # AST preflight: catch tether-call errors locally before any UE round-trip.
     # Warnings are printed but don't block. Errors short-circuit with exit 3.
     if not getattr(args, "no_preflight", False):
-        errs, warns = _preflight_or_skip(code)
+        # identity.engine_version is empty for direct --endpoint connections
+        # (discovery skipped) — the version gate is then silently disabled.
+        errs, warns = _preflight_or_skip(code, identity.engine_version)
         for w in warns:
             print(w, file=sys.stderr)
         if errs:
             for e in errs:
                 print(e, file=sys.stderr)
-            try:
-                _, _, _, proj, _identity = resolve_target(args)
-            except SystemExit:
-                proj = None
-            _audit(proj, mode, src, code, ok=False,
+            _audit(project_path, mode, src, code, ok=False,
                    err=f"preflight: {len(errs)} error(s); first: {errs[0].splitlines()[0]}")
             return 3  # 3 = preflight rejection (distinct from 1 = transport, 2 = arg)
-
-    host, port, token, project_path, identity = resolve_target(args)
 
     # Wrap user code so AttributeError messages get enriched with valid-attrs
     # + did-you-mean before reaching the agent's stderr. UE engine API has
@@ -1468,7 +1510,9 @@ def main():
         "--timeout",
         type=float,
         default=DEFAULT_TIMEOUT,
-        help=f"Per-request timeout in seconds (default: {DEFAULT_TIMEOUT})",
+        help=f"Per-request timeout in seconds (default: {DEFAULT_TIMEOUT}). "
+             "Note: the server clamps exec requests to a hard 300s ceiling — "
+             "values above 300 behave as 300 for exec/exec-file",
     )
     parser.add_argument(
         "--json",
@@ -1572,6 +1616,14 @@ def main():
     pf_parser.add_argument(
         "file",
         help="Path to .py file (or `-` to read script from stdin).",
+    )
+    pf_parser.add_argument(
+        "--engine-version",
+        default=None,
+        help="Target editor's engine version (e.g. '5.6.4'). Enables the "
+             "stub-function version gate — calls to functions the target "
+             "engine can't execute become errors. Optional; without it the "
+             "gate is skipped.",
     )
 
     sg_parser = subparsers.add_parser(

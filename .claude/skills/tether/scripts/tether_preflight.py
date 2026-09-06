@@ -198,9 +198,28 @@ def load_return_types(path: Optional[str] = None) -> Optional[dict]:
     return data
 
 
+def _parse_engine_version(version: str) -> Optional["tuple[int, int]"]:
+    """Extract a (major, minor) tuple from an engine version string.
+
+    Handles UE's full form ("5.7.1-48512491+++UE5+Release-5.7") and the plain
+    "5.7" / "5.7.0" forms. Returns None when unparseable.
+    """
+    import re
+    m = re.match(r"\s*(\d+)\.(\d+)", version or "")
+    if not m:
+        return None
+    return int(m.group(1)), int(m.group(2))
+
+
+def _parse_min_engine(version: str) -> Optional["tuple[int, int]"]:
+    """Same parsing for manifest "min_engine" stamps (e.g. "5.7")."""
+    return _parse_engine_version(version)
+
+
 def lint(code: str, manifest: Optional[dict] = None,
          redirects: Optional[dict] = None,
-         return_types: Optional[dict] = None) -> "tuple[List[str], List[str]]":
+         return_types: Optional[dict] = None,
+         engine_version: Optional[str] = None) -> "tuple[List[str], List[str]]":
     """Return (errors, warnings). Empty lists = fully clean.
 
     - errors block the call (preflight rejection, exit 3 in tether.py)
@@ -208,6 +227,14 @@ def lint(code: str, manifest: Optional[dict] = None,
 
     Each entry is a one-or-multi-line human-readable diagnostic that names the
     line, the offending symbol, and the corrected form.
+
+    engine_version: the target editor's engine version string (discovery
+    Endpoint.engine_version, e.g. "5.7.0"). When given and older than a
+    function's manifest "min_engine" stamp, calls to that function are
+    hard errors — on older engines those UFUNCTIONs resolve to _Stubs.cpp
+    bodies that only log a warning and return a default value (a silent
+    failure). None/empty → version gating is skipped (best-effort mode,
+    e.g. direct --endpoint connections that skip discovery).
     """
     if manifest is None:
         manifest = load_manifest()
@@ -218,6 +245,8 @@ def lint(code: str, manifest: Optional[dict] = None,
 
     if manifest is None:
         return [], []  # No manifest available — silently skip (preflight is best-effort)
+
+    engine_tuple = _parse_engine_version(engine_version or "")
 
     # Auto-augment return_types from manifest:
     #  • Add every Tether USTRUCT to type_attributes (so attribute access on a
@@ -277,7 +306,8 @@ def lint(code: str, manifest: Optional[dict] = None,
 
     for node in ast.walk(tree):
         if isinstance(node, ast.Call):
-            err = _check_call(node, unreal_aliases, lib_aliases, libraries)
+            err = _check_call(node, unreal_aliases, lib_aliases, libraries,
+                              engine_tuple)
             if err:
                 errors.append(err)
             seen_call_ids.add(id(node.func))
@@ -389,7 +419,8 @@ def _attribute_chain(node: ast.AST) -> List[str]:
 # ── Validators ────────────────────────────────────────────────────────────
 
 def _check_call(node: ast.Call, unreal_aliases: Set[str],
-                lib_aliases: dict, libraries: dict) -> str:
+                lib_aliases: dict, libraries: dict,
+                engine_tuple: Optional["tuple[int, int]"] = None) -> str:
     chain = _attribute_chain(node.func)
 
     # Resolve to (lib_name, fn_name) — accept three forms:
@@ -426,6 +457,23 @@ def _check_call(node: ast.Call, unreal_aliases: Set[str],
         return msg
 
     fn_meta = funcs[fn]
+
+    # 0. Engine-version gate: stub-backed functions on older engines only
+    # log a warning and return a default value (silent failure) — reject
+    # the call up front when we know the target editor's version.
+    if engine_tuple is not None:
+        min_engine = fn_meta.get("min_engine")
+        if min_engine:
+            min_tuple = _parse_min_engine(min_engine)
+            if min_tuple is not None and engine_tuple < min_tuple:
+                return (
+                    f"preflight L{node.lineno}: {lib}.{fn}() requires UE "
+                    f"{min_engine}+; the target editor is running "
+                    f"{engine_tuple[0]}.{engine_tuple[1]}. On this version the "
+                    "call is a no-op stub (warning log + default return) — "
+                    "use a 5.7+ editor or a different function."
+                )
+
     params = fn_meta.get("params", [])
     pnames = [p["name"] for p in params]
     n_required = sum(1 for p in params if not p.get("has_default"))

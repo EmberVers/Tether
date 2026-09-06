@@ -5,8 +5,7 @@ rem Expose .claude/skills as the cross-tool .agents/skills via an NTFS junction.
 rem
 rem Several agent runtimes (Gemini CLI, OpenCode, Cursor, ...) follow the
 rem "Agent Skills open standard" and read .agents/skills/<name>/SKILL.md
-rem when present. Rather than copy the skill tree per tool (the way
-rem convert_claude_skills_to_codex.bat does for Codex), this script
+rem when present. Rather than copy the skill tree per tool, this script
 rem creates a directory junction so they all share the same source of truth.
 rem
 rem Junctions:

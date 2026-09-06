@@ -73,6 +73,53 @@ TARGETS: list[dict] = [
 # Class line: `class [TETHER_API] UFoo : public UBlueprintFunctionLibrary`.
 UCLASS_RE = re.compile(r"\bclass\s+(?:\w+_API\s+)?(\w+)\s*:\s*public\s+UBlueprintFunctionLibrary\b")
 
+
+# Shared declaration for consumers that need the stub surface as data.
+#
+# gen_manifest.py imports this to stamp `"min_engine": "5.7"` on every
+# stub-gated function in tether_manifest.json, and tether_preflight.py uses
+# those manifest entries to reject the calls when the discovered editor's
+# engine version is older (a stub call there logs a warning and returns a
+# default value — a silent failure agents can't see otherwise).
+#
+# A missing header or an empty resolved function list means no gating is
+# reported for that library (falls back to "function works everywhere").
+MIN_ENGINE_VERSION = "5.7"
+
+
+def stub_function_map(targets: "list[dict] | None" = None,
+                      public: "Path | None" = None) -> dict:
+    """Resolve TARGETS into {library_name: {function_name, ...}}.
+
+    "all" scope resolves to every UFUNCTION found in the header, so the map
+    stays correct when functions are added/removed without editing TARGETS.
+    Read-only (no files written); safe to import from other tools.
+    """
+    resolved: dict = {}
+    public = public or PUBLIC
+    for target in (targets if targets is not None else TARGETS):
+        name = target["name"]
+        h_path = public / f"{name}.h"
+        if not h_path.is_file():
+            continue
+        _, funcs = parse_header(h_path)
+        scope = target["scope"]
+        if scope == "all":
+            wanted = {f["name"] for f in funcs}
+        elif scope == "function":
+            wanted = {target["function"]}
+        elif scope == "functions":
+            wanted = set(target["functions"])
+        else:
+            continue
+        # "function" scope that no longer matches anything (renamed/removed
+        # UFUNCTION) means the gate no longer exists — report nothing rather
+        # than phantom entries.
+        if not wanted:
+            continue
+        resolved[name] = wanted
+    return resolved
+
 # UFUNCTION(...)\nstatic <ret> <name>(<params>); — one level of nested parens.
 UFUNCTION_RE = re.compile(
     r"UFUNCTION\("

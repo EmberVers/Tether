@@ -5,10 +5,6 @@
       "shape": "list",
       "element_type": "str"
     },
-    "TetherAssetLibrary.list_assets_in_path": {
-      "shape": "list",
-      "element_type": "str"
-    },
     "TetherAssetLibrary.search_assets_in_all_content": {
       "shape": "tuple",
       "tuple_element_types": ["list[SoftObjectPath]", "list[str]"]

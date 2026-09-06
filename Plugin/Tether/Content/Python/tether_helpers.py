@@ -20,7 +20,8 @@ def list_assets(path, class_filter=None, recursive=True):
         recursive: Whether to search subdirectories
 
     Returns:
-        List of asset path strings.
+        List of asset package paths (e.g. '/Game/Props/SM_Barrel'), matching
+        the paths accepted by unreal.load_asset / EditorAssetLibrary.
     """
     asset_registry = unreal.AssetRegistryHelpers.get_asset_registry()
 
@@ -33,7 +34,9 @@ def list_assets(path, class_filter=None, recursive=True):
     for asset_data in assets:
         if class_filter and str(asset_data.asset_class_path.asset_name) != class_filter:
             continue
-        paths.append(str(asset_data.get_full_name()))
+        # package_name is the stable object-path form (no class prefix),
+        # unlike get_full_name() which yields "Class /Game/.../Asset.Name".
+        paths.append(str(asset_data.package_name))
 
     return paths
 
@@ -382,7 +385,8 @@ def import_input_bindings_from_json(spec, default_save=True, overwrite=False):
         for m in imc_spec.get("mappings", []):
             ia = m["action_path"]
             key = m["key"]
-            gp.add_ia_mapping_to_imc(path, ia, key, False)
+            # 3-arg signature (save is implicit via the default_save pass below)
+            gp.add_ia_mapping_to_imc(path, ia, key)
             for t in m.get("triggers", []):
                 gp.add_trigger_to_imc_mapping(path, ia, key, t["class"], t.get("params", "{}"), False)
             for mod in m.get("modifiers", []):

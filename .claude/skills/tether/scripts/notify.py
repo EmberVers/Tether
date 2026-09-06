@@ -96,6 +96,11 @@ def post(url: str, payload: dict, timeout: float = 10.0) -> tuple[int, str]:
             return resp.status, body
     except urllib.error.HTTPError as e:
         return e.code, e.read().decode("utf-8", errors="replace")
+    except (urllib.error.URLError, socket.timeout, TimeoutError, OSError) as e:
+        # Network-level failures (DNS, refused, unreachable, timeouts) are the
+        # common case for completion notifications — surface one line on stderr
+        # instead of a traceback, and let the caller treat rc=1 as "not delivered".
+        return -1, f"{type(e).__name__}: {e}"
 
 
 def parse_field(spec: str) -> tuple[str, str]:
@@ -179,6 +184,11 @@ def main() -> int:
         payload = builder(args.title, body, args.status, args.field, args.source)
 
     status, response_body = post(args.url, payload, timeout=args.timeout)
+    if status < 0:
+        # Transport failure (URLError / timeout / unreachable): single stderr
+        # line + exit 1, no traceback.
+        print(f"[notify] delivery failed — {response_body}", file=sys.stderr)
+        return 1
     if 200 <= status < 300:
         if not args.quiet:
             print(f"[notify] HTTP {status} — {len(response_body)}B response")

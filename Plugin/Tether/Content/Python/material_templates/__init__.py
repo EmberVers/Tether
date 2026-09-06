@@ -7,11 +7,13 @@ Material Instance + preview render.
 
 Invocation is always via the tether from the host side::
 
-    python tether.py exec-file -c "
+    python tether.py exec --stdin <<'EOF'
+    import sys
+    sys.path.insert(0, r"<project>/Plugins/Tether/Content/Python")
     from material_templates import character_armor
     r = character_armor.build()
     print(r)
-    "
+    EOF
 
 All template builders assume they run inside the UE editor Python
 environment — they import ``unreal`` directly and call the

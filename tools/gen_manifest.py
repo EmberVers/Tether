@@ -53,6 +53,66 @@ except ImportError:
     _IN_UE = False
 
 
+def _apply_min_engine_stamps(manifest: dict) -> "tuple[dict, int]":
+    """Stamp `"min_engine": "5.7"` on every stub-gated function entry.
+
+    Shares the stub function list with tools/gen_version_stubs.py (single
+    source of truth). On older engines those UFUNCTIONs resolve to _Stubs.cpp
+    bodies that only log a warning and return a default value — the manifest
+    stamp lets tether_preflight.py reject them deterministically instead.
+
+    TARGETS/gen_version_stubs.py carry C++ UFUNCTION names (PascalCase);
+    manifest keys are UE Python bindings (snake_case) — converted here.
+    """
+    import re as _re
+
+    try:
+        from gen_version_stubs import MIN_ENGINE_VERSION, stub_function_map
+    except ImportError:
+        # Standalone invocation from another cwd — retry relative to this file.
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        try:
+            from gen_version_stubs import MIN_ENGINE_VERSION, stub_function_map
+        except ImportError:
+            print("WARN: gen_version_stubs.py not importable — min_engine stamps skipped",
+                  file=sys.stderr)
+            return manifest, 0
+
+    def _to_snake(name: str) -> str:
+        s = _re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", name)
+        s = _re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", s)
+        return s.lower()
+
+    stubs = stub_function_map()
+    stamped = 0
+    for lib_name, fn_names in stubs.items():
+        lib = manifest.get("libraries", {}).get(lib_name)
+        if not lib:
+            print(
+                f"WARN: stub target {lib_name} not in manifest — check "
+                "gen_version_stubs.py TARGETS",
+                file=sys.stderr,
+            )
+            continue
+        funcs = lib.get("functions", {})
+        for fn_name in fn_names:
+            py_name = _to_snake(fn_name)
+            fn_meta = funcs.get(py_name)
+            if fn_meta is None:
+                # A stub target that isn't a UFUNCTION binding (renamed,
+                # removed, or a non-UFUNCTION overload) — surface it so the
+                # two generators don't silently drift apart.
+                print(
+                    f"WARN: stub target {lib_name}.{fn_name} "
+                    f"(→ {py_name}) not in manifest",
+                    file=sys.stderr,
+                )
+                continue
+            fn_meta["min_engine"] = MIN_ENGINE_VERSION
+            stamped += 1
+    return manifest, stamped
+
+
 # ── In-UE half: reflect the live Tether* surface ─────────────────────
 
 def _build_manifest_in_ue() -> dict:
@@ -418,6 +478,10 @@ def _cli() -> int:
         print(f"ERROR: no JSON line in script output:\n{manifest_text[:500]}", file=sys.stderr)
         return 1
 
+    # Stamp stub-gated functions with their minimum engine version (shared
+    # list with gen_version_stubs.py) before writing either artifact.
+    last_json, n_stamped = _apply_min_engine_stamps(last_json)
+
     os.makedirs(os.path.dirname(out), exist_ok=True)
     with open(out, "w", encoding="utf-8") as f:
         json.dump(last_json, f, indent=2, ensure_ascii=False, sort_keys=True)
@@ -428,7 +492,10 @@ def _cli() -> int:
     n_enums = len(last_json.get("enums", {}))
     print(f"Wrote {out}")
     print(f"  {n_libs} libraries, {n_funcs} functions, {n_enums} enums")
+    print(f"  {n_stamped} stub-gated functions stamped min_engine")
     print(f"  UE: {last_json.get('ue_version', '?')}, generated: {last_json.get('generated_at', '?')}")
+
+    _validate_curated_configs(repo, last_json)
 
     if not args.no_wrapper:
         wrapper_out = args.wrapper_out or os.path.join(
@@ -463,6 +530,62 @@ def _cli() -> int:
                   file=sys.stderr)
 
     return 0
+
+
+# ── Curated-config validation (offline; cross-checks hand-maintained JSON) ──
+
+def _validate_curated_configs(repo: str, manifest: dict) -> None:
+    """Warn about dead keys in the hand-curated JSON configs next to the manifest.
+
+    tether_return_types.json function_returns keys and every
+    `unreal.TetherXxxLibrary.fn(...)` call mentioned in a tether_redirects.json
+    tether_replacement must resolve against the freshly generated manifest.
+    Dead keys silently stop firing (they can never match a call site), so
+    surface them at generation time instead. Best-effort: missing/unreadable
+    config files are skipped silently.
+    """
+    import re
+
+    libraries = manifest.get("libraries", {})
+    scripts_dir = os.path.join(repo, ".claude", "skills", "tether", "scripts")
+
+    def _load_json(name: str):
+        path = os.path.join(scripts_dir, name)
+        if not os.path.isfile(path):
+            return None
+        try:
+            with open(path, encoding="utf-8") as f:
+                return json.load(f)
+        except (OSError, json.JSONDecodeError):
+            return None
+
+    return_types = _load_json("tether_return_types.json")
+    if return_types:
+        for key in return_types.get("function_returns", {}):
+            if "." not in key:
+                continue
+            lib_name, fn_name = key.split(".", 1)
+            if fn_name not in libraries.get(lib_name, {}).get("functions", {}):
+                print(
+                    f"WARN: tether_return_types.json key {key!r} does not exist "
+                    "in the generated manifest (dead key — remove or fix it)",
+                    file=sys.stderr,
+                )
+
+    redirects = _load_json("tether_redirects.json")
+    if redirects:
+        for entry in redirects.get("redirects", []):
+            replacement = entry.get("tether_replacement") or ""
+            for lib_name, fn_name in re.findall(
+                r"(?:unreal\.)?(Tether\w*Library)\.(\w+)\s*\(", replacement
+            ):
+                if fn_name not in libraries.get(lib_name, {}).get("functions", {}):
+                    print(
+                        f"WARN: tether_redirects.json entry {entry.get('id')!r} "
+                        f"references {lib_name}.{fn_name} which is not in the "
+                        "generated manifest (dead redirect)",
+                        file=sys.stderr,
+                    )
 
 
 # ── Wrapper module generation (offline; reads manifest, emits Python) ──────
