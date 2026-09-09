@@ -1327,6 +1327,14 @@ FTetherWidgetValidationReport UTetherUMGLibrary::CompileAndValidateWidgetBluepri
 		}
 	}
 
+	// 变量 GUID 映射自愈：AddWidget 直操 WidgetTree，不经 UMG 编辑器的 OnVariableAdded
+	// 注册路径，树与 WidgetVariableNameToGuidMap 会失配——UMGEditor 编译器
+	// ValidateAndFixUpVariableGuids 的 else 分支对失配控件 ensureAlways 直接崩
+	//（"Widget [X] was added but did not get a GUID"，WidgetBlueprintCompiler.cpp:794，
+	// 2026-09-09 KesUI Showcase 实证）。清空映射让引擎走 IsEmpty 分支按 GetPathName
+	// 确定性重填充：GUID 稳定、零外部损失，失配资产借此自愈。控件重名已由上方
+	// UMG_DUPLICATE_NAME 检查覆盖（重名在填充分支同样会 ensure，两道闸一致）。
+	WBP->WidgetVariableNameToGuidMap.Empty();
 	FKismetEditorUtilities::CompileBlueprint(WBP);
 	Report.bCompiled = true;
 	Report.CompileStatus = BlueprintStatusToString(WBP->Status);
