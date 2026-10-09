@@ -1372,6 +1372,63 @@ FTetherWidgetValidationReport UTetherUMGLibrary::CompileAndValidateWidgetBluepri
 	return Report;
 }
 
+bool UTetherUMGLibrary::SetWidgetPreviewPreset(const FString& WidgetBlueprintPath,
+	const FString& Mode, float Width, float Height)
+{
+	using namespace TetherUMGImpl;
+	UWidgetBlueprint* WBP = LoadWBP(WidgetBlueprintPath, TEXT("set_widget_preview"));
+	if (!WBP)
+	{
+		return false;
+	}
+
+	// 设计器 Screen Size 下拉的存档同源：生成类 CDO 的 DesignSizeMode/DesignTimeSize
+	// （SDesignerView::GetDefaultWidget → GeneratedClass->GetDefaultObject）。
+	// EDesignPreviewSizeMode 是 WITH_EDITORONLY_DATA 且未暴露给 python，故走 C++。
+	static const TPair<const TCHAR*, EDesignPreviewSizeMode> Modes[] =
+	{
+		{ TEXT("FillScreen"), EDesignPreviewSizeMode::FillScreen },
+		{ TEXT("Custom"), EDesignPreviewSizeMode::Custom },
+		{ TEXT("CustomOnScreen"), EDesignPreviewSizeMode::CustomOnScreen },
+		{ TEXT("Desired"), EDesignPreviewSizeMode::Desired },
+		{ TEXT("DesiredOnScreen"), EDesignPreviewSizeMode::DesiredOnScreen },
+	};
+	EDesignPreviewSizeMode Parsed = EDesignPreviewSizeMode::Custom;
+	bool bMatched = false;
+	for (const TPair<const TCHAR*, EDesignPreviewSizeMode>& Candidate : Modes)
+	{
+		if (Mode.Equals(Candidate.Key, ESearchCase::IgnoreCase))
+		{
+			Parsed = Candidate.Value;
+			bMatched = true;
+			break;
+		}
+	}
+	if (!bMatched)
+	{
+		LogFailure(TEXT("set_widget_preview"), FString::Printf(TEXT("unknown Mode '%s'"), *Mode));
+		return false;
+	}
+
+	if (WBP->Status == BS_Dirty || WBP->Status == BS_Error)
+	{
+		FKismetEditorUtilities::CompileBlueprint(WBP);
+	}
+	UUserWidget* CDO = Cast<UUserWidget>(WBP->GeneratedClass->GetDefaultObject());
+	if (!CDO)
+	{
+		LogFailure(TEXT("set_widget_preview"), TEXT("GeneratedClass CDO is not a UUserWidget"));
+		return false;
+	}
+
+	const FScopedTransaction Transaction(FText::FromString(TEXT("Tether Set Widget Preview Preset")));
+	WBP->Modify();
+	CDO->Modify();
+	CDO->DesignSizeMode = Parsed;
+	CDO->DesignTimeSize = FVector2D(Width, Height);
+	return UEditorLoadingAndSavingUtils::SavePackages({ WBP->GetOutermost() }, false);
+}
+
 // Animation authoring -------------------------------------------------------
 
 TArray<FTetherWidgetAnimationInfo> UTetherUMGLibrary::GetWidgetAnimations(

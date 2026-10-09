@@ -314,6 +314,16 @@ public:
 	static FTetherWidgetValidationReport CompileAndValidateWidgetBlueprint(
 		const FString& WidgetBlueprintPath, bool bSave, bool bCheckAccessibility);
 
+	/**
+	 * 设置设计器预览尺寸预设（写在生成类 CDO 的 DesignSizeMode/DesignTimeSize 上，
+	 * 与设计器 Screen Size 下拉的存档同源）。
+	 * @param Mode  FillScreen / Custom / CustomOnScreen / Desired / DesiredOnScreen（大小写不敏感）
+	 * @param Width/Height  Custom 模式的画布尺寸；其它模式忽略（传 0 即可）
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Tether|UMG")
+	static bool SetWidgetPreviewPreset(const FString& WidgetBlueprintPath,
+		const FString& Mode, float Width, float Height);
+
 	// Animation authoring -----------------------------------------------------
 
 	UFUNCTION(BlueprintCallable, Category = "Tether|UMG|Animation")
